@@ -44,26 +44,21 @@ int32_t syscall_open(const char*file,uint32_t flag){
     //先检查文件是否存在
     char name[FILENAME_MAX_LEN+1];
     struct DirEntry entry;
-    struct Dir*dir=SearchFile(file,name,&entry,0);
-    if(dir==0&&entry.filetype==FT_UNKOWN){
-        //如果连最后一层都没解析到
-        return -1;
-    }
+    int32_t parent=-1;
+    SearchFile(file,name,&entry,&parent,0);
+    //如果连最后一层都没解析到
+    if(parent==-1)return -1;
     bool found=entry.filetype==FT_FILE;//文件是否存在
-    if(!found&&!(flag&O_CREATE)){
-        //如果文件不存在并且也没有创建的flag
-        if(dir)DirClose(dir);
-        return -1;
-    }
-    if(found&&(flag&O_CREATE)){
-        //如果已经存在了还去创建
-        if(dir)DirClose(dir);
-        return -1;
-    }
+     //如果文件不存在并且也没有创建的flag
+    if(!found&&!(flag&O_CREATE))return -1;
+    //如果已经存在了还去创建
+    if(found&&(flag&O_CREATE))return -1;
     int32_t fd=-1;
     switch (flag&O_CREATE)
     {
     case O_CREATE:
+        struct Dir*dir=DirOpen(CurPartition,parent);
+        ASSERT(dir);
         fd=file_create(dir,name,flag);
         break;
     default:
@@ -118,55 +113,67 @@ int32_t syscall_seek(int32_t fd,int32_t offset,uint32_t flag){
 int32_t syscall_unlink(const char*file){
     //先检查文件是否存在
     char name[FILENAME_MAX_LEN+1];
-    int32_t parent;
+    int32_t parent=-1;
     struct DirEntry entry;
-    struct Dir*dir=SearchFile(file,name,&entry,&parent);
-    if(dir)DirClose(dir);//关闭目录
-    if(entry.filetype!=FT_FILE)return 0;//如果不存在或者不是普通文件直接返回
+    struct Dir*dir=SearchFile(file,name,&entry,&parent,1);
+    //如果不存在或者不是普通文件直接返回
+    if(entry.filetype!=FT_FILE)
+    {
+        if(dir)DirClose(dir);//可能打开的是目录而不是文件
+        return 0;
+    }
     //先检查文件是否已经被打开
-    if(FindOpenInode(CurPartition,entry.index))return 0;
+    if(dir->inode->open_cnt>=2){
+        DirClose(dir);
+        return 0;
+    }
+    
     //回收掉inode
-    struct Inode*inode=InodeOpen(CurPartition,entry.index);
-    ASSERT(inode);
     uint32_t addr[140];
-    ASSERT(InodeRecycle(CurPartition,inode,addr));
-    InodeClose(inode);
+    ASSERT(InodeRecycle(CurPartition,dir->inode,addr));
     //删除在父目录的记录
-    ASSERT(DeleteDirectoryDirEntry(CurPartition,parent,name,addr));//删不掉属于系统级别的硬伤，直接卡死
+    struct Dir*fa=DirOpen(CurPartition,parent);
+    ASSERT(fa);
+    ASSERT(DeleteDirectoryDirEntry(CurPartition,fa,name,addr));//删不掉属于系统级别的硬伤，直接卡死
+    DirClose(fa);
+    DirClose(dir);
     return 1;
 }
 int32_t syscall_mkdir(const char*path){
     struct DirEntry entry;
     char name[FILENAME_MAX_LEN+1];
-    struct Dir*dir=SearchFile(path,name,&entry,0);
-    if(!dir)return 0;
+    int32_t parent=-1;
+    struct Dir*dir=SearchFile(path,name,&entry,&parent,1);
+    //如果都没解析到最后一层,或者解析到最后一层但是存在对应的目录项，直接返回
+    if(parent==-1||entry.filetype!=FT_UNKOWN){
+        if(dir)DirClose(dir);
+        return 0;
+    }
     //创建3个目录项,分别是path下的. .. 和path父目录下的path
     int idx=-1;
     idx=InodeBitmapAllocate(CurPartition);
     if(idx==-1) goto MkDirRollBack;
     //path
-    int32_t faIdx=dir->inode->index;
     entry.index=idx;
-    memcpy(entry.filename,name,sizeof(name));
+    memcpy(entry.filename,name,FILENAME_MAX_LEN);
     entry.filetype=FT_DIR;
     if(!CreateDirEntry(CurPartition,dir,&entry))goto MkDirRollBack;
-    dir->inode->size++;
-    InodeWrite(CurPartition,dir->inode);//同步到磁盘
     DirClose(dir);//关闭目录
     dir=DirOpen(CurPartition,idx);//打开新建的目录
-    dir->inode->size=2;
+    ASSERT(dir);
+    InodeInit(dir->inode,idx);
+    dir->inode->open_cnt=1;
     //.
     entry.index=dir->inode->index;
     memcpy(entry.filename,".",2);
     entry.filetype=FT_DIR;
     if(!CreateDirEntry(CurPartition,dir,&entry))goto MkDirRollBack;
     //..
-    entry.index=faIdx;//..指向父亲节点
+    entry.index=parent;//..指向父亲节点
     memcpy(entry.filename,"..",3);
     entry.filetype=FT_DIR;
     if(!CreateDirEntry(CurPartition,dir,&entry))goto MkDirRollBack;
     //同步到磁盘
-    InodeWrite(CurPartition,dir->inode);
     BitMapUpdate(CurPartition,idx,BITMAP_FOR_INODE);
     DirClose(dir);
     return 1;
@@ -180,10 +187,14 @@ int32_t syscall_mkdir(const char*path){
 struct Dir*syscall_opendir(const char*path){
     struct DirEntry entry;
     char name[FILENAME_MAX_LEN+1];
-    struct Dir*dir=SearchFile(path,name,&entry,0);
-    if(dir)DirClose(dir);
-    if(entry.filetype!=FT_DIR)return 0;//只要最后查找的目录项不是目录，返回0
-    return DirOpen(CurPartition,entry.index);
+    int32_t parent=-1;
+    struct Dir*dir=SearchFile(path,name,&entry,&parent,1);
+    //如果不存在
+    if(parent==-1||entry.filetype!=FT_DIR){
+        if(dir)DirClose(dir);
+        return 0;
+    }
+    return dir;
 }
 //
 int32_t syscall_closedir(struct Dir*dir){
@@ -208,12 +219,12 @@ struct DirEntry* syscall_readdir(struct Dir*dir){
     uint32_t addr[140];
     memcpy(addr,dir->inode->i_sectors,48);
     if(dir->inode->i_sectors[12])
-    ide_read(CurPartition->my_disk,(void*)(((uint32_t)addr)+48),dir->inode->i_sectors[12],1);
+    ide_read(CurPartition->my_disk,(&addr[0])+12,dir->inode->i_sectors[12],1);
     int32_t tarpos=dir->dir_pos;
     int32_t idx0=0;
     int32_t curpos=0;
     int32_t cnt=SECTOR_SIZE/sizeof(struct DirEntry);
-    while(curpos!=tarpos){
+    while(curpos<=tarpos){
         if(addr[idx0]==0){
             ++idx0;
             continue;
@@ -224,13 +235,14 @@ struct DirEntry* syscall_readdir(struct Dir*dir){
         for(int i=0;i<cnt;++i){
             struct DirEntry*entry=&entrys[i];
             if(entry->filetype!=FT_UNKOWN){
-                ++curpos;
                 if(curpos==tarpos){
                     ++(dir->dir_pos);
                     return entry;
                 }
+                ++curpos;
             }
         }
+        ++idx0;
     }
     return 0;
 }
@@ -240,33 +252,68 @@ int32_t syscall_rmdir(const char*path){
     struct DirEntry entry;
     char name[FILENAME_MAX_LEN+1];
     int32_t parent=-1;
-    struct Dir*dir=SearchFile(path,name,&entry,&parent);
-    if(dir)DirClose(dir);//关闭这个目录
-    if(parent==-1||entry.filetype!=FT_DIR)return 0;//如果该目录不存在
-    //判断要删除的目录是否被打开了
-    if(FindOpenInode(CurPartition,entry.index))return 0;//如果被打开了，那么是不能删除的
+    struct Dir*dir=SearchFile(path,name,&entry,&parent,1);
+    //如果该目录不存在或者不是目录
+    if(parent==-1||entry.filetype!=FT_DIR){
+        if(dir)DirClose(dir);
+        return 0;
+    }
+    //判断要删除的目录是否被打开了(因为我们自己打开了一次，所以打开次数不能超过2),如果被打开了，那么是不能删除的
+    if(dir->inode->open_cnt>=2)
+    {
+        DirClose(dir);
+        return 0;
+    }
     //判断要删除的那个目录是否为空
-    struct Dir*target=DirOpen(CurPartition,entry.index);
-    ASSERT(target);
-    if(target->inode->size!=2){
-        DirClose(target);
+    if(dir->inode->size!=2){
+        DirClose(dir);
         return 0;
     }
     //删除在父目录的记录
+    struct Dir*fa=DirOpen(CurPartition,parent);
     uint32_t addr[140];
-    ASSERT(DeleteDirectoryDirEntry(CurPartition,target->inode->index,name,addr));
+    ASSERT(DeleteDirectoryDirEntry(CurPartition,fa,name,addr));
     //回收掉inode
-    ASSERT(InodeRecycle(CurPartition,target->inode,addr));
-    DirClose(target);
+    ASSERT(InodeRecycle(CurPartition,dir->inode,addr));
+    DirClose(fa);
+    DirClose(dir);
     return 1;
 }
 //
-int32_t syscall_getcwd(char*buf){
+int32_t syscall_getcwd(char*buf,uint32_t buff_size){
     struct PCB*pcb=RunningThread();
     struct Dir* dir=pcb->workDir;
     ASSERT(dir);
+    if(dir==&rootDir){
+        buf[0]='/';
+        buf[1]=0;
+        return 1;
+    }
+    //先获取当前目录的父目录编号
+    int fa=DirGetParentIndex(CurPartition,dir,dir->dir_buf);
     //
-    
+    char*tmp=buf+buff_size-1;
+    int cur=dir->inode->index;
+    uint32_t addr[140];
+    char name[FILENAME_MAX_LEN+1];
+    //只要当前目录不是根目录就一直往上找
+    while(cur){
+        int faa;
+        DirGetIndexName(CurPartition,fa,cur,addr,name,&faa);
+        cur=fa;
+        fa=faa;
+        int len=strlen(name);
+        while(len--)*tmp=name[len],--tmp;
+        *tmp='/';
+        --tmp;
+    }
+    //把字符串前移
+    int len=0;
+    char*tmpp=buf,*end=buf+buff_size;
+    ++tmp;
+    while(tmp!=end)*tmpp=*tmp,++tmpp,++tmp,++len;
+    *tmpp=0;
+    return len;
 }
 //
 int32_t syscall_chdir(const char*path){
@@ -274,15 +321,39 @@ int32_t syscall_chdir(const char*path){
     struct DirEntry entry;
     char name[FILENAME_MAX_LEN+1];
     int32_t parent=-1;
-    struct Dir*dir=SearchFile(path,name,&entry,&parent);
-    if(dir)DirClose(dir);//关闭这个目录
-    if(parent==-1||entry.filetype!=FT_DIR)return 0;//如果该目录不存在
+    struct Dir*dir=SearchFile(path,name,&entry,&parent,1);
+    //如果该目录不存在或者根本不是目录
+    if(parent==-1||entry.filetype!=FT_DIR)
+    {
+        if(dir)DirClose(dir);
+        return 0;
+    }
     //关闭原目录
     struct PCB*pcb=RunningThread();
-    DirClose(pcb->workDir);
     ASSERT(pcb->workDir);
+    DirClose(pcb->workDir);
     //打开新目录
-    pcb->workDir=DirOpen(CurPartition,entry.index);
+    pcb->workDir=dir;
+    return 1;
+}
+//
+int syscall_stat(const char*path,struct stat*buf){
+    //先判断目录是否存在
+    struct DirEntry entry;
+    char name[FILENAME_MAX_LEN+1];
+    int32_t parent=-1;
+    struct Dir*dir=SearchFile(path,name,&entry,&parent,1);
+    //如果该目录不存在
+    if(parent==-1)
+    {
+        if(dir)DirClose(dir);
+        return 0;
+    }
+    //
+    buf->filetype=entry.filetype;
+    buf->inode=entry.index;
+    buf->size=dir->inode->size;
+    DirClose(dir);
     return 1;
 }
 //
@@ -307,11 +378,12 @@ void syscall_init()
     MakeSyscallTable(SYSCALL_MKDIR,(uint32_t)(void*)syscall_mkdir,1);
     MakeSyscallTable(SYSCALL_OPENDIR,(uint32_t)(void*)syscall_opendir,1);
     MakeSyscallTable(SYSCALL_CLOSEDIR,(uint32_t)(void*)syscall_closedir,1);
-    MakeSyscallTable(SYSCALL_CLOSEDIR,(uint32_t)(void*)syscall_rewinddir,1);
     MakeSyscallTable(SYSCALL_READDIR,(uint32_t)(void*)syscall_readdir,1);
+    MakeSyscallTable(SYSCALL_REWINDDIR,(uint32_t)(void*)syscall_rewinddir,1);
     MakeSyscallTable(SYSCALL_DIRREMOVE,(uint32_t)(void*)syscall_rmdir,1);
-    MakeSyscallTable(SYSCALL_GETCWD,(uint32_t)(void*)syscall_getcwd,1);
+    MakeSyscallTable(SYSCALL_GETCWD,(uint32_t)(void*)syscall_getcwd,2);
     MakeSyscallTable(SYSCALL_CHDIR,(uint32_t)(void*)syscall_chdir,1);
+    MakeSyscallTable(SYSCALL_STAT,(uint32_t)(void*)syscall_stat,2);
     ////////////////////////////////////////////////////
     put_str("syscall table init done!\n");
 }
@@ -455,12 +527,18 @@ int32_t rmdir(const char *path)
     return syscall(SYSCALL_DIRREMOVE,path);
 }
 
-int32_t getcwd(char *buf)
+int32_t getcwd(char *buf,uint32_t buff_size)
 {
-    return syscall(SYSCALL_GETCWD,buf);
+    return syscall(SYSCALL_GETCWD,buf,buff_size);
 }
 
 int32_t chdir(const char *dir)
 {
     return syscall(SYSCALL_CHDIR,dir);
+}
+
+
+int stat(const char *path, struct stat* buf)
+{
+    return syscall(SYSCALL_STAT,path,buf);
 }

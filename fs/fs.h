@@ -19,14 +19,20 @@ enum FileType{
     FT_DIR,//目录文件
 };
 
+struct stat{
+    int32_t inode;//inode编号
+    uint32_t size;//如果是目录,代表目录的数量，如果是文件，代表文件的大小
+    enum FileType filetype;//文件类型
+};
+
 enum{
     SEEK_SET=1,
     SEEK_CUR,
     SEEK_END,
 };
 void FileSystem_init();
-struct Dir* SearchFile(const char*path,char*buf,struct DirEntry*entry,int32_t*parentIdx);
-bool DeleteDirectoryDirEntry(struct partition*part,int32_t dirIdx,const char*entry,uint32_t*addr_buf);
-
+struct Dir* SearchFile(const char*path,char*buf,struct DirEntry*entry,int32_t*parentIdx,bool dirOpen);
+bool DeleteDirectoryDirEntry(struct partition*part,struct Dir*dir,const char*entry,uint32_t*addr_buf);
+bool PreprocessingPath(const char*path,char*buf);
 ///////////////////////////////////
 #endif

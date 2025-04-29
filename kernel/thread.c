@@ -1,6 +1,7 @@
 #include "thread.h"
 #include "../userprog/process.h"
 #include "../lib/kernel/print.h"
+#include "../fs/dir.h"
 #define MemberOffset(structType,member) ((uint32_t)(&(((structType*)0)->member))) //返回成员在结构体里面的偏移量
 #define DelayMinHeapMaxCnt 1024//默认最大只能同时有1024个延迟任务
 /////////////////////////////////////
@@ -82,7 +83,7 @@ void ThreadInit(struct PCB *pcb, const char *name, uint8_t priority)
     pcb->pid=PidAllocate();//获取进程pid
     pcb->totalTicks=0;
     pcb->status=READY;//线程初始化时默认状态为就绪态,也就是说创建完毕后就可以执行了
-    pcb->workDir=0;//默认为根目录
+    pcb->workDir=&rootDir;//默认为根目录
     for(int i=0;i<MAX_FILE_CNT_OPEN_PROCESS;++i)pcb->fd[i]=-1;//初始化文件描述符
     uint32_t esp=((uint32_t)(pcb))+PAGE_SIZE;//栈顶
     pcb->kernelStack=esp-sizeof(struct InterruptStack)-sizeof(struct ThreadStack);//减去中断栈和线程栈就是内核栈

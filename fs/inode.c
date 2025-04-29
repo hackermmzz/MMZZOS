@@ -72,7 +72,6 @@ void InodeClose(struct Inode *inode)
     interrupt_disable();
     //
     if(--(inode->open_cnt)==0){
-
         ListRemove(0,&(inode->tag));
         struct PCB*pcb=RunningThread();
         uint32_t pgaddr=pcb->pageaddr;
@@ -86,8 +85,11 @@ void InodeClose(struct Inode *inode)
 
 void InodeInit(struct Inode *inode, uint32_t index)
 {
-    memset(inode,0,sizeof(*inode));
+    inode->open_cnt=0;
+    inode->size=0;
+    inode->write_deny=0;
     inode->index=index;
+    memset(inode->i_sectors,0,sizeof(inode->i_sectors));
 }
 
 

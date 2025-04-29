@@ -19,14 +19,19 @@ int main(){
     //初始化文件系统
     FileSystem_init();
     //
-    int fd=open("/../test.txt",O_CREATE);
-    char wb[]="LiHongWang Ha Ha";
-    write(fd,wb,sizeof(wb)-1);
-    char readbuff[50];
-    bool success=seek(fd,0,SEEK_SET);
-    if(!success)printf("Seek error!\n");
-    int readCnt=read(fd,readbuff,50);
-    printf("You have read %d bytes and the content is \n%s\n",readCnt,readbuff);
+    /*
+    extern void partition_format(struct partition*part);
+    extern bool mount_partition(struct ListNode*node,int arg);
+    extern struct partition*CurPartition;
+    partition_format(CurPartition);//
+    ListTraversal(&(partition_list),mount_partition,(int)CurPartition->name);
+    */
+   
+    struct stat state;
+    stat("/home",&state);
+    printf("%d %d %d\n",state.inode,state.size,state.filetype);
+    
+    //
     while(1){
         uint16_t key=KeyBoardGet();
         if(key==CODE_BACKSPACE_DOWN){

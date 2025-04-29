@@ -206,13 +206,14 @@ int32_t AllocateIndirectBlock(struct partition*part,struct Inode*inode,void*buf)
     //连间接表都满了，那就没办法了
     return -1;
 }
-//分配一个扇区给inode,这个扇区对应编号是第idx个,buf同上
+//分配一个扇区给inode,这个扇区对应编号是第idx个,buf同上,申请到的扇区位图会被自动同步到磁盘上
 int32_t AllocateOneSector(struct partition*part,struct Inode*inode,int idx,void*buf){
     if(idx<12){
         int32_t idx0=BlockBitmapAllocate(part);
         if(idx0==-1)return -1;
         idx0+=part->sb->data_lba;
         inode->i_sectors[idx]=idx0;
+        BitMapUpdate(part,idx0,BITMAP_FOR_BLOCK);
         return idx0;
     }
     return AllocateIndirectBlock(part,inode,buf);
@@ -318,4 +319,43 @@ int32_t file_read(int32_t fd,void*buf,uint32_t cnt){
     file->fd_pos=curP;
     //
     return curRead;
+}
+
+//获取当前目录的父亲节点编号
+int32_t DirGetParentIndex(struct partition*part,struct Dir*dir,void*buf){
+    //.和..按道理只会在第一个位置扇区并且位于最前2项
+    ide_read(part->my_disk,buf,dir->inode->i_sectors[0],1);
+    //获取..位置
+    struct DirEntry*entry=&((struct DirEntry*)buf)[1];
+    return entry->index;
+}
+//在父亲目录下获取目录下编号为index的目录项名字,存于name中,并且获取父目录的父目录编号存于fa中
+void DirGetIndexName(struct partition*part,int32_t parent,int32_t index,uint32_t*addr_buf,char*name,int32_t*fa){
+    struct Dir*dir=DirOpen(part,parent);
+    ASSERT(dir);
+    memcpy(addr_buf,dir->inode->i_sectors,48);
+    int end=12;
+    if(dir->inode->i_sectors[12]){
+        ide_read(part->my_disk,addr_buf+12,dir->inode->i_sectors[12],1);
+        end=140;
+    }
+    int cnt=SECTOR_SIZE/sizeof(struct DirEntry);
+    for(int idx=0;idx<end;++idx){
+        if(addr_buf[idx]==0)continue;
+        ide_read(part->my_disk,dir->dir_buf,addr_buf[idx],1);
+        struct DirEntry*entry=(struct DirEntry*)dir->dir_buf;
+        for(int i=0;i<cnt;++i,++entry){
+            //如果是父目录的父目录
+            if(fa&&idx==0&&i==1)*fa=entry->index;
+            //
+            if(entry->filetype!=FT_UNKOWN&&entry->index==index){
+                strcpy(name,entry->filename);
+                DirClose(dir);
+                return; 
+            }
+        }
+    }
+    name[0]=0;
+    DirClose(dir);
+    return;
 }

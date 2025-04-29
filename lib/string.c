@@ -29,6 +29,21 @@ int strcmp(const char *s0, const char *s1)
     if(*s0)return 1;
     return -1;
 }
+//把字符串反转,返回值是字符串的长度
+int32_t reverse(char *str)
+{
+    int32_t len=strlen(str);
+    uint8_t*head=str,*tail=str+len-1,tmp;
+    while(head<tail){
+        tmp=*head;
+        *head=*tail;
+        *tail=tmp;
+        ++head;
+        --tail;
+    }
+    str[len]=0;
+    return len;
+}
 
 void *memset(void *dst, int dt, uint32_t size)
 {

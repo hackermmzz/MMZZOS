@@ -7,33 +7,26 @@ struct Dir rootDir;
 bool SearchDirEntry(struct partition*part,struct Dir*dir,const char*name,struct DirEntry*entry){
     uint32_t blockCnt=140;//
     uint32_t*blockOff=syscall_malloc(blockCnt*sizeof(uint32_t));//目前仅实现一级间接表
-    if(!blockOff){
-        printk("allocate memory failed!\n");
-        return 0;
-    }
+    if(!blockOff)return 0;
     for(int i=0;i<12;++i)blockOff[i]=dir->inode->i_sectors[i];
     if(blockOff[12])ide_read(part->my_disk,blockOff+12,blockOff[12],1);
-    uint8_t*buff=syscall_malloc(512);
-    if(!buff){
-        syscall_free(blockOff);
-        return 0;
-    }
+    uint8_t*buff=dir->dir_buf;
     //开始读取每个块
-    for(int i=0,cnt=BLOCK_SIZE/(sizeof(struct DirEntry));i<blockCnt;++i){
+    int cnt=cnt=SECTOR_SIZE/(sizeof(struct DirEntry));
+    for(int i=0;i<blockCnt;++i){
         if(!blockOff[i])continue;
         ide_read(part->my_disk,buff,blockOff[i],1);
-        for(int i=0;i<BLOCK_SIZE;i+=sizeof(struct DirEntry)){
-            struct DirEntry*ptr=(struct DirEntry*)(((uint32_t)buff)+i);
-            if(!strcmp(ptr->filename,name)){
+        struct DirEntry*entrys=(struct DirEntry*)buff;
+        for(int i=0;i<cnt;++i){
+            struct DirEntry*ptr=&entrys[i];
+            if(ptr->filetype!=FT_UNKOWN&&!strcmp(ptr->filename,name)){
                 memcpy(entry,ptr,sizeof(struct DirEntry));
-                syscall_free(buff);
                 syscall_free(blockOff);
                 return 1;
             }
         }
     }
     //
-    syscall_free(buff);
     syscall_free(blockOff);
     return 0;
 }
@@ -64,7 +57,7 @@ bool CreateDirEntry(struct partition*part,struct Dir*parent,struct DirEntry*entr
     }
     for(int i=0;i<12;++i)blockOff[i]=parent->inode->i_sectors[i];
     if(blockOff[12])ide_read(part->my_disk,blockOff+12,blockOff[12],1);
-    uint8_t*buff=syscall_malloc(512);
+    uint8_t*buff=parent->dir_buf;
     if(!buff){
         syscall_free(blockOff);
         return 0;
@@ -77,7 +70,6 @@ bool CreateDirEntry(struct partition*part,struct Dir*parent,struct DirEntry*entr
             //分配扇区
             idx0=BlockBitmapAllocate(part);
             if(idx0==-1){
-                syscall_free(buff);
                 syscall_free(blockOff);
                 return 0;
             }
@@ -92,7 +84,6 @@ bool CreateDirEntry(struct partition*part,struct Dir*parent,struct DirEntry*entr
             else if(i==12){
                 idx1=BlockBitmapAllocate(part);//分配扇区
                 if(idx1==-1){
-                    syscall_free(buff);
                     syscall_free(blockOff);
                     BitMapReset(&(part->block_bitmap),idx0);
                     return 0;
@@ -142,7 +133,6 @@ bool CreateDirEntry(struct partition*part,struct Dir*parent,struct DirEntry*entr
         ++(parent->inode->size);
         InodeWrite(part,parent->inode);
     }
-    syscall_free(buff);
     syscall_free(blockOff);
     return flag;
 }

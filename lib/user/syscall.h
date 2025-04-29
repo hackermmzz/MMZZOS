@@ -6,6 +6,7 @@
 #include "../../kernel/thread.h"
 #include "../../device/timer.h"
 ////////////////////////////////////////
+struct stat;
 ////////////////////////////////////////
 enum SYSCALL_CODE{
     SYSCALL_GETPID,
@@ -26,6 +27,7 @@ enum SYSCALL_CODE{
     SYSCALL_DIRREMOVE,
     SYSCALL_GETCWD,
     SYSCALL_CHDIR,
+    SYSCALL_STAT,
 };//系统调用号
 ////////////////////////////////////////
 void syscall_init();
@@ -51,7 +53,8 @@ int32_t closedir(struct Dir*dir);
 int32_t rewinddir(struct Dir*dir);
 struct DirEntry* readdir(struct Dir*dir);
 int32_t rmdir(const char*path);
-int32_t getcwd(char*buf);
+int32_t getcwd(char*buf,uint32_t buff_size);
 int32_t chdir(const char*dir);
+int stat(const char*path,struct stat*buf);
 ////////////////////////////////////////
 #endif

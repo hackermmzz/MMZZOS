@@ -11,6 +11,7 @@ struct FILE{
     struct Inode*inode;
 };
 
+
 enum STD_FD{
     STDOUT_FD=0,//标准输出流
     STDIN_FD,//标准输入流
@@ -28,6 +29,8 @@ enum {
     O_RDWR,
     O_CREATE=4,
 };
+
+
 /////////////////////////////////////////////////
 extern struct FILE GlobalFileTable[MAX_FILE_CNT_SYSTEM_OPEN];
 /////////////////////////////////////////////////
@@ -39,5 +42,7 @@ int32_t file_open(uint32_t index,uint8_t flag);
 uint32_t file_write(int32_t fd,const void*buf,uint32_t size);
 int32_t LocalFdToGlobalFd(int32_t fd_l);
 int32_t file_read(int32_t fd,void*buf,uint32_t cnt);
+int32_t DirGetParentIndex(struct partition*part,struct Dir*dir,void*buf);
+void DirGetIndexName(struct partition*part,int32_t parent,int32_t index,uint32_t*addr_buf,char*name,int32_t*fa);
 ////////////////////////////////////
 #endif

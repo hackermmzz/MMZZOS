@@ -4,6 +4,7 @@
 #include"../lib/math.h"
 #include"super_block.h"
 #include "file.h"
+#include"../lib/kernel/aid.h"
 //
 struct partition*CurPartition;//默认情况下使用的分区
 extern struct Dir rootDir;
@@ -77,7 +78,7 @@ void partition_format(struct partition*part){
     memset(buf,0,buffer_size);
     struct Inode*root=(struct Inode*)buf;
     root->index=0;
-    root->size=superblock.dir_entry_size*2;//只有.和..
+    root->size=2;//只有.和..
     root->i_sectors[0]=superblock.data_lba;//他的数据就在数据扇区起始位置
     ide_write(hd,buf,superblock.inode_table_lba,superblock.inode_table_sector_cnt);
     printk("The inode table has been written into the partition!\n");
@@ -151,7 +152,6 @@ void FileSystem_init(){
                 //读取超级块
                 ide_read(hd,sb,part->start_lba+1,1);
                 //根据魔数判断是否为格式化后的文件系统
-                partition_format(part);
                 if(sb->magic==SUPERBLOCK_MAGIC){
                     printk("%s has file system!\n",part->name);
                 }else{
@@ -189,104 +189,114 @@ const char*ParsePath(const char*path,char*buf){
     *buf=0;
     return path;
 }
-/*查询path指定的目录或者文件是否存在，若存在返回DirEntry，反之返回FT_UNKOWN,
-parent为目标目录或者目标文件的父目，
-buf里面存的文件名
+//判断路径是否合法,把最终可以变为合法的路径放入buf
+bool PreprocessingPath(const char*path,char*buf){
+    //交给内核处理的路径只能是/a/b///c//d/e格式,其他都不行
+    //如果前缀不是/
+    if(path[0]!='/')return 0;
+    //拷贝字符串
+    strcpy(buf,path);
+    int len=strlen(buf);
+    //去掉后缀的/
+    while(len>=1&&buf[len-1]=='/')--len;
+    buf[len]=0;
+    //文件名只能是字母、数字、下划线和.
+    for(int i=0;i<len;++i){
+        char ch=buf[i];
+        if(ch=='/'||ch=='.'||ch=='_'||isalpha(ch)||isdigit(ch)){
+            continue;
+        }
+        return 0;
+    }
+    return 1;
+}
+/*
+buf里面存的最后解析的文件名或者目录名
+查询path指定的目录或者文件是否存在，若存在填充entry，反之返回entry填充FT_UNKOWN,
+parent为目标目录或者目标文件的父目录，若未解析到最后一层,那么parent为-1
+dirNeed表示最后解析成功的目录项是否打开，若打开返回打开的dir，反之返回0
 若文件存在或者没有解析到最后一层，返回0，反之返回最后一层父目录
 */
-struct Dir* SearchFile(const char*path,char*buf,struct DirEntry*entry,int32_t*parentIdx){
-    struct Dir*parent;
+struct Dir* SearchFile(const char*path,char*buf,struct DirEntry*entry,int32_t*parentIdx,bool dirOpen){
     //根目录直接返回
     if(!strcmp(path,"/")||!strcmp(path,"/..")||!strcmp(path,"/.")){
         *buf=0;
         entry->filename[0]=0;
         entry->filetype=FT_DIR;
         entry->index=rootDir.inode->index;
-        *parentIdx=rootDir.inode->index;//根目录的父目录还是根目录
-        return 0;
+        if(parentIdx)*parentIdx=rootDir.inode->index;//根目录的父目录还是根目录
+        return dirOpen?&rootDir:0;
     }
-    parent=&rootDir;
+    struct Dir*last;
+    last=&rootDir;
     //逐层解析,形如/a/b/c/d
     entry->filetype=FT_UNKOWN;
     do{
-        if(parentIdx)*parentIdx=parent->inode->index;
+        if(parentIdx)*parentIdx=last->inode->index;
         path=ParsePath(path,buf);
-        if(SearchDirEntry(CurPartition,parent,buf,entry)){
+        if(SearchDirEntry(CurPartition,last,buf,entry)){
             //如果找到的是目录
             if(entry->filetype==FT_DIR){
-                DirClose(parent);
-                parent=DirOpen(CurPartition,entry->index);
+                DirClose(last);
+                last=DirOpen(CurPartition,entry->index);
             }
             //如果找到的是文件
             else if(entry->filetype==FT_FILE){
+                if(!dirOpen)DirClose(last);
                 if(*path){
                     //如果没到路径末尾就解析出了文件，直接返回
                     entry->filetype=FT_UNKOWN;
-                    DirClose(parent);
                     if(parentIdx)*parentIdx=-1;//解析错误，父目录为-1
-                    return 0;
+                    return last;
                 }
-                break;//否则解析成功,返回
+                return last;//否则解析成功,返回
             }
             else PANIC_MACRO("HERE!\n");
         }else{
             //如果没解析到末尾
             entry->filetype=FT_UNKOWN;
-            if(*path)
-            {
-                if(parentIdx)*parentIdx=-1;
-                DirClose(parent);
-                return 0;
-            }
-            return parent;//解析到了末尾，只不过文件不存在
+            if(!dirOpen)DirClose(last);
+            if(*path&&parentIdx)*parentIdx=-1;
+            return last;//解析到了末尾，只不过文件不存在
         }
     }while(*path);
     //解析成功直接返回
-    DirClose(parent);
-    return 0;
+    if(!dirOpen)DirClose(last);
+    return last;
 }
 
 
-bool DeleteDirectoryDirEntry(struct partition*part,int32_t dirIdx, const char *entry,uint32_t*addr_buf)
+bool DeleteDirectoryDirEntry(struct partition*part,struct Dir*dir, const char *entry,uint32_t*addr_buf)
 {
-    struct Dir*dir=DirOpen(part,dirIdx);
-    ASSERT(dir);
     //
     memcpy((void*)addr_buf,(void*)(dir->inode->i_sectors),48);
     int32_t end=12;
-    
     if(dir->inode->i_sectors[12]){
         end=140;
         ide_read(part->my_disk,&addr_buf[12],dir->inode->i_sectors[12],1);
-    }
-    
+    } 
     //
-    void*buf=syscall_malloc(SECTOR_SIZE);
+    void*buf=dir->dir_buf;
     ASSERT(buf);
     int32_t cnt=SECTOR_SIZE/sizeof(struct DirEntry);
-    for(int i=0;i<end;++i){
-        if(addr_buf[i]){
+    for(int idx=0;idx<end;++idx){
+        if(addr_buf[idx]){
             //读取信息
-            ide_read(part->my_disk,buf,addr_buf[i],1);
+            ide_read(part->my_disk,buf,addr_buf[idx],1);
             struct DirEntry*entrys=(struct DirEntry*)buf;
             for(int i=0;i<cnt;++i){
                 if(entrys[i].filetype!=FT_UNKOWN){
                     if(!strcmp(entrys[i].filename,entry)){
                         memset(&entrys[i],0,sizeof(struct DirEntry));
-                        ide_write(part->my_disk,buf,addr_buf[i],1);
-                        syscall_free(buf);
+                        ide_write(part->my_disk,buf,addr_buf[idx],1);
                         //同步文件夹大小
                         dir->inode->size-=1;
                         InodeWrite(part,dir->inode);
-                        //关闭索引
-                        DirClose(dir);
                         return 1;
                     }
                 }
             }
         }
     }
-    DirClose(dir);
-    syscall_free(buf);
     return 0;
 }

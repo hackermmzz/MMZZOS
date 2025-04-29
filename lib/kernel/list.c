@@ -17,7 +17,7 @@ void ListPushFront(struct List *list,struct ListNode*node)
     bool status=interrupt_status();
     interrupt_disable();
     node->nxt=list->head.nxt;
-    node->pre=&list->head;
+    node->pre=&(list->head);
     node->nxt->pre=node;
     list->head.nxt=node;
     if(status)interrupt_enable();
