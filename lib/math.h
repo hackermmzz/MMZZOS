@@ -1,0 +1,8 @@
+#ifndef MMZZ_MATH_H
+#define MMZZ_MATH_H
+#include"stdint.h"
+////////////////////////////////////
+int max(int,int);
+int min(int,int);
+////////////////////////////////////
+#endif
