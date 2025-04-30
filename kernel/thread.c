@@ -242,7 +242,7 @@ pid_t PidAllocate()
 {
     static pid_t pid=0;
     MutexAcquire(&pidLock);
-    pid_t ret=pid++;
+    pid_t ret=++pid;//保证没有进程号为0的进程
     MutexRelease(&pidLock);
     return ret;
 }

@@ -18,18 +18,6 @@ int main(){
     asm("sti");
     //初始化文件系统
     FileSystem_init();
-    //
-    /*
-    extern void partition_format(struct partition*part);
-    extern bool mount_partition(struct ListNode*node,int arg);
-    extern struct partition*CurPartition;
-    partition_format(CurPartition);//
-    ListTraversal(&(partition_list),mount_partition,(int)CurPartition->name);
-    */
-   
-    struct stat state;
-    stat("/home",&state);
-    printf("%d %d %d\n",state.inode,state.size,state.filetype);
     
     //
     while(1){

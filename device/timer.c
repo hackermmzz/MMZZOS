@@ -16,7 +16,7 @@ void frequency_set(uint8_t port, uint8_t number, uint8_t rwl, uint8_t mode, uint
 {
     outB(PIT_COUNTROL_PORT,(uint8_t) (number << 6 | rwl << 4 | mode << 1));
     outB(port,(uint8_t)count);
-    outB(port,(uint8_t)count >> 8);
+    outB(port,(uint8_t)(count >> 8));
 }
 
 void timer_init()
@@ -41,3 +41,4 @@ void timer_interrupt(uint8_t code){
         --(cur->ticks);
     }
 }
+ 
