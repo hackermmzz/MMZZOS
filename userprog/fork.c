@@ -1,5 +1,6 @@
 #include"fork.h"
 #include"../fs/file.h"
+#include "syscall.h"
 extern void itr_exit();
 //拷贝父进程的pcb、虚拟内存图和0级栈(目前没考虑失败回溯处理)
 bool CopyPCB_VaddrBM_Stack0(struct PCB*parent,struct PCB*child){
@@ -126,3 +127,4 @@ int32_t fork()
 {
     return syscall(SYSCALL_FORK);
 }
+

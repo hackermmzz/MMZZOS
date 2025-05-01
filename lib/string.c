@@ -18,6 +18,19 @@ char* strcpy(char *dst, const char *src)
     return dst;
 }
 
+char* strcat(char *dst, const char *src)
+{
+   int len=strlen(dst);
+   dst+=len;
+   while(*src){
+    *dst=*src;
+    ++src;
+    ++dst;
+   }
+   *dst=0;
+   return dst;
+}
+
 int strcmp(const char *s0, const char *s1)
 {
     while(*s0&&*s1){

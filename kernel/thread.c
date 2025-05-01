@@ -149,6 +149,13 @@ bool DelayMinHeapCMP(MinHeapNode node0,MinHeapNode node1){
     return pcb0->TargetDelayTime<pcb1->TargetDelayTime;
 }
 //
+void idle_task_func(void*arg){
+    while(1){
+        ThreadBlock();
+        asm volatile("sti;hlt ":::"memory");
+    }
+}
+//
 void init_thread()
 {
     put_str("thread init start!\n");
@@ -163,6 +170,11 @@ void init_thread()
     MinHeapInit(&DelayMinHeap,DelayMinHeapCMP,DelayMinHeapMaxCnt);
     //初始化内核主线程
     InitKernalThread();
+    //创建闲置任务
+    idle_task=ThreadCreate("idle_task",1,idle_task_func,0);
+    //创建init进程
+    extern void init(void*);
+    ProcessExe((void*)init,"init");
     //
     put_str("thred init done!\n");
 }
@@ -212,13 +224,13 @@ void ThreadBlock()
     //////////////////////////////////
     if(old)interrupt_enable();
 }
-
+//只能用于内核线程
 void Thread_Yield()
 {
     struct PCB*pcb=RunningThread();
     uint8_t old=interrupt_status();interrupt_disable();
     /////////////////////////////////////////
-    //这里直接schedule是为了防止用户进程一直schedule，这样他的时间片会被重置
+    //这里直接schedule是为了防止内核线程程一直schedule,这样他的时间片会被重置
     pcb->status=READY;
     ListPushBack(&ReadyList,&(pcb->tagS));
     schedule();

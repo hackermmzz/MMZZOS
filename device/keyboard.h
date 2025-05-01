@@ -176,9 +176,15 @@ enum KEYBOARDCODE{
     CODE_QUESTION_UP,
     CODE_FORWARD_SLASH_DOWN,// /
     CODE_FORWARD_SLASH_UP,
-    //组合按键
+    ////组合按键
+    CODE_CTRL_BEGIN,
+    //
     CODE_CTRL_Z,
     CODE_CTRL_C,
+    CODE_CTRL_L,
+    CODE_CTRL_U,
+    //
+    CODE_CTRL_END,
 };
 ////////////////////////////////
 ////////////////////////////////
@@ -187,5 +193,7 @@ void keyboard_interrupt(uint8_t code);
 uint8_t KeyBoardConvertTo(uint16_t code);
 uint16_t KeyBoardFunction(uint16_t code0,uint16_t code1);//根据code0和code1返回对应的功能按键
 uint16_t KeyBoardGet();//获取一个输入
+void KeyBoardRead(void*buf,uint32_t cnt);//从键盘读取cnt个字符
+bool IsFunctionKey(uint16_t key);//判断key是否是功能按键
 ///////////////////////////////
 #endif

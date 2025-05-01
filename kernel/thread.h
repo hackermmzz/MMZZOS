@@ -4,6 +4,8 @@
 #include "../lib/kernel/list.h"
 #include "../lib/kernel/minHeap.h"
 ///////////////////////////////
+#define MAX_THREAD_CNT 1024   //MMZZOS最大可以运行1024个线程
+#define THREAD_NAME_MAX_LEN 16//线程名字最大长度
 #define MAX_FILE_CNT_OPEN_PROCESS  8//每个进程可以打开的最多文件数
 typedef void(*ThreadFunc)(void*) ;
 //////////////////////////////
@@ -60,7 +62,7 @@ struct PCB{//程序控制块
     pid_t pa_pid;//父进程pid
     enum ThreadStatus status;
     uint8_t priority;
-    char name[16];
+    char name[THREAD_NAME_MAX_LEN+1];
     uint8_t ticks;//当前剩余得滴答数
     uint32_t totalTicks;//总共运行得滴答数
     struct ListNode tagS;//根据当前状态决定tagS在哪个队列

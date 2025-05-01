@@ -25,13 +25,16 @@ gcc -m32 -c -o build/fs.o  fs/fs.c -fno-stack-protector #fs.c文件
 gcc -m32 -c -o build/inode.o  fs/inode.c -fno-stack-protector #inode.c文件
 gcc -m32 -c -o build/file.o  fs/file.c -fno-stack-protector #file.c文件
 gcc -m32 -c -o build/dir.o  fs/dir.c -fno-stack-protector #dir.c文件
+gcc -m32 -ffreestanding -c -o build/shell.o  shell/shell.c -fno-stack-protector #shell.c文件
+gcc -m32 -ffreestanding -c -o build/buildin_cmd.o  shell/buildin_cmd.c -fno-stack-protector #buildin_cmd.c文件
+gcc -m32 -c -o build/exec.o userprog/exec.c -fno-stack-protector #exec.c文件
 nasm -f elf -I include/ -o build/print.o lib/kernel/print.asm #编译aid.asm文件
 nasm -f elf -o build/idt_table.o kernel/idt_table.asm #编译中断向量表
 nasm -f elf -o build/SwitchTo.o kernel/SwitchTo.asm #编译上下文切换函数
 nasm -I include/ -o boot/loader.bin boot/loader.asm #编译loader文件
 
 cd build
-ld -m elf_i386  -Ttext 0xc0001500 kernel.o dir.o inode.o file.o fs.o  syscall.o fork.o minHeap.o math.o  stdio.o ide.o  aid.o process.o tss.o SwitchTo.o ioqueue.o keyboard.o memory.o thread.o interrupt.o idt_table.o init.o  list.o print.o  printc.o timer.o assert.o string.o bitmap.o -e main -o kernel.bin
+ld -m elf_i386  -Ttext 0xc0001500 kernel.o exec.o shell.o buildin_cmd.o dir.o inode.o file.o fs.o  syscall.o  fork.o minHeap.o math.o  stdio.o ide.o  aid.o process.o tss.o SwitchTo.o ioqueue.o keyboard.o memory.o thread.o interrupt.o idt_table.o init.o  list.o print.o  printc.o timer.o assert.o string.o bitmap.o -e main -o kernel.bin
 dd if=../boot/mbr.bin  of=/home/mmzz/bochs/bochs/bin/hd60M.img  bs=512 count=1 conv=notrunc 
 dd if=../boot/loader.bin  of=/home/mmzz/bochs/bochs/bin/hd60M.img  bs=512 count=5 seek=2 conv=notrunc 
 dd if=kernel.bin  of=/home/mmzz/bochs/bochs/bin/hd60M.img  bs=512 count=200 seek=9 conv=notrunc 

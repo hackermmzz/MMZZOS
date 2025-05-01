@@ -7,12 +7,12 @@ uint32_t randint(int a, int b)
     return next%RAND_MAX;
 }
 
-bool isdigit(char ch)
+int isdigit(int ch)
 {
     return ch>='0'&&ch<='9';
 }
 
-bool isalpha(char ch)
+int isalpha(int ch)
 {
     ch&=~(32);
     return ch>='A'&&ch<='Z';

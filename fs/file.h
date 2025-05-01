@@ -4,6 +4,7 @@
 #include "dir.h"
 ////////////////////////////////////
 #define MAX_FILE_CNT_SYSTEM_OPEN 64//系统可打开的最多文件数量
+#define MAX_PATH_LEN 256//路径最长长度
 ////////////////////////////////////
 struct FILE{
     uint32_t fd_pos;

@@ -59,7 +59,7 @@ void BitMapUpdate(struct partition*part,uint32_t idx,enum FS_BITMAP_TYPE flag){
         lba=part->sb->inode_bitmap_lba+sector;
         buf=part->inode_bitmap.bits+offset;
     }else{
-        lba=part->sb->block_bitmap_lba;
+        lba=part->sb->block_bitmap_lba+sector;
         buf=part->block_bitmap.bits+offset;
     }
     ide_write(part->my_disk,buf,lba,1);

@@ -113,7 +113,7 @@ bool InodeRecycle(struct partition*part,struct Inode*inode,uint32_t*addr_buf){
     BitMapReset(&(part->inode_bitmap),inode->index);
     BitMapUpdate(part,inode->index,BITMAP_FOR_INODE);
     //获取文件分配到的所有扇区
-    int32_t block_lba=part->sb->block_bitmap_lba;
+    int32_t block_lba=part->sb->data_lba;
     memset(addr_buf,0,sizeof(addr_buf));
     memcpy(addr_buf,inode->i_sectors,48);
     if(inode->i_sectors[12]){

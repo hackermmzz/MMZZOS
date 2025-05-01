@@ -17,7 +17,7 @@ void itoa(uint32_t value,char**buf,int base){
 }
 int vfprintf(char *buf, const char *format, va_list arg)
 {
-    char*ptr=buf;
+    char*tmp=buf;
     const char*idx=format;
     while(*idx){
         if(*idx=='%'){
@@ -56,7 +56,7 @@ int vfprintf(char *buf, const char *format, va_list arg)
         ++idx;
     }
     *buf=0;
-    return strlen(buf);
+    return strlen(tmp);
 }
 int printf(const char*format,...){
     va_list arg;
@@ -75,4 +75,15 @@ int sprintf(char *buf, const char *format, ...)
     int len=vfprintf(buf,format,arg);
     va_end(arg);
     return len;
+}
+
+int getchar(){
+    char ret;
+    syscall(SYSCALL_READ,STDIN_FD,&ret,1);
+    return ret;
+}
+
+int putchar(int ch){
+    char chh=ch;
+    write(STDOUT_FD,&chh,1);
 }

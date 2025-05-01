@@ -29,6 +29,8 @@ enum SYSCALL_CODE{
     SYSCALL_CHDIR,
     SYSCALL_STAT,
     SYSCALL_FORK,
+    SYSCALL_CLEAR,
+    SYSCALL_PS,//获取系统目前所有的进程信息
 };//系统调用号
 ////////////////////////////////////////
 void syscall_init();
@@ -43,7 +45,7 @@ uint32_t write(uint32_t fd,const byte*buf,uint32_t size);
 uint32_t read(uint32_t fd,void*buf,uint32_t size);
 void*malloc(uint32_t size);
 void free(void*addr);
-void sleep(uint32_t msecond);
+int sleep(uint32_t msecond);
 int32_t open(const char*filename,uint8_t flag);
 int32_t close(int32_t fd);
 int32_t seek(int32_t fd,int32_t offset,uint8_t base);
@@ -58,5 +60,7 @@ int32_t getcwd(char*buf,uint32_t buff_size);
 int32_t chdir(const char*dir);
 int stat(const char*path,struct stat*buf);
 int32_t fork();
+int clear();
+int ps(void*buf);
 ////////////////////////////////////////
 #endif

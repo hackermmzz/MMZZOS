@@ -4,53 +4,25 @@
 #include "../userprog/process.h"
 #include"../lib/stdio.h"
 #include"../fs/file.h"
-void idle_task_func(void*arg);
-void test(void*arg);
+#include"../shell/shell.h"
+bool AllInit=0;//标记系统是否初始化完成
 int main(){
     //初始
     MMZZOS_Init();
-    //创建闲置任务
-    idle_task=ThreadCreate("idle_task",1,idle_task_func,0);
-    //
-    ProcessExe(test,"pro1");
     asm("sti");
     //初始化文件系统
     FileSystem_init();
-    
-    //
-    while(1){
-        uint16_t key=KeyBoardGet();
-        if(key==CODE_BACKSPACE_DOWN){
-            put_char('\b');
-        }
-        else if(key==CODE_CTRL_Z){
-            put_str("kill the process!\n");
-        }
-        else if(key==CODE_CTRL_C){
-            put_str("terminate the process!\n");
-        }
-        else if(key==CODE_ENTER_DOWN){
-            put_char('\n');
-        }
-        else{
-            uint8_t code=KeyBoardConvertTo(key);
-            if(code!=(uint8_t)-1){
-                put_char(code);
-            }
-        }
-    }
+    AllInit=1;
+    while(1);
     return 0;
 } 
-void idle_task_func(void*arg){
-    while(1){
-        ThreadBlock();
-        asm volatile("sti;hlt ":::"memory");
-    }
-}
-void test(void*arg){
-    sleep(1000);
-    int fd=fork();
-    while(1){
-        
+
+void init(void*arg){
+    while(!AllInit);//这里直接简单粗暴等到系统初始化完成,也不用去调度啥的了,等后期实现了用户级线程yield再更改
+    int32_t ret=fork();
+    if(ret){
+        while(1);
+    }else{
+        shell();
     }
 }

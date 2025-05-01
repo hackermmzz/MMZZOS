@@ -3,6 +3,7 @@
 ///////////////////////////////////////
 bool KeyBoardShift=0;//判断当时是否摁下shift
 bool KeyBoardCapsLock=0;//判断大写是否锁定
+bool KeyBoardCtrl=0;//判断ctrl是否按下
 uint16_t KeyBoardQueue[KeyBoardQueueMaxCnt]={-1};//键盘键入值队列
 int KeyBoardQueueIdx=0;
 struct ioQueue KeyboardQueue;
@@ -302,6 +303,9 @@ void keyboard_interrupt(uint8_t code)
     else if(decode==CODE_SHIFT_UP)KeyBoardShift=0;
     //对CapsLock处理
     if(decode==CODE_CAPS_LOCK_DOWN)KeyBoardCapsLock^=1;
+    //对ctrl进行处理
+    if(decode==CODE_CTRL_DOWN)KeyBoardCtrl=1;
+    else if(decode==CODE_CTRL_UP)KeyBoardCtrl=0;
     //如果shift摁下,那就转大写
     if(KeyBoardShift||KeyBoardCapsLock){
         if(CODE_A_DOWN<=decode&&decode<=CODE_Z_DOWN)decode|=32768;//最高位做一个标志
@@ -310,10 +314,8 @@ void keyboard_interrupt(uint8_t code)
     KeyBoardQueue[KeyBoardQueueIdx]=decode;
     KeyBoardQueueIdx=(KeyBoardQueueIdx+1)%KeyBoardQueueMaxCnt;//采用循环队列的方式
     //存入io队列
-    //第二个队列不对ctrl单独处理
-    if(decode!=CODE_CTRL_DOWN&&decode!=CODE_CTRL_UP){
-        uint16_t prev=KeyBoardQueue[(KeyBoardQueueIdx-1+KeyBoardQueueMaxCnt)%KeyBoardQueueMaxCnt];//获取前一个键入值
-        uint16_t code=KeyBoardFunction(prev,decode);
+    {
+        uint16_t code=KeyBoardFunction(KeyBoardCtrl?CODE_CTRL_DOWN:-1,decode);
         if(!ioQueueFull(&KeyboardQueue)&&code!=(uint16_t)-1){
             //依次放入第8位和高8位
             ioQueuePut(&KeyboardQueue,(uint32_t)code);
@@ -325,6 +327,18 @@ void keyboard_interrupt(uint8_t code)
 uint8_t KeyBoardConvertTo(uint16_t code)
 {
     //只有摁下才返回，抬起返回-1
+    //处理功能按键
+    if(IsFunctionKey(code)){
+        return code;//因为功能按键对应的键码值都大于128,所以这里就算直接返回也不会与可见ascii码混肴的
+    }
+    //处理回车
+    if(code==CODE_ENTER_DOWN){
+        return '\n';
+    }
+    //处理退格
+    if(code==CODE_BACKSPACE_DOWN){
+        return '\b';
+    }
     //处理字母
     uint16_t codeE=code&32767;
     if(CODE_A_DOWN<=codeE&&codeE<=CODE_Z_DOWN){
@@ -382,6 +396,8 @@ uint16_t KeyBoardFunction(uint16_t code0, uint16_t code1)
     if(code0==CODE_CTRL_DOWN){
         if(code1==CODE_Z_DOWN)return CODE_CTRL_Z;
         if(code1==CODE_C_DOWN)return CODE_CTRL_C;
+        if(code1==CODE_L_DOWN)return CODE_CTRL_L;
+        if(code1==CODE_U_DOWN)return CODE_CTRL_U;
     }
     //否则直接返回code1
     return code1;
@@ -391,4 +407,24 @@ uint16_t KeyBoardGet()
 {
     uint32_t key=ioQueueGet(&KeyboardQueue);
     return (uint16_t)key;
+}
+
+void KeyBoardRead(void *buf, uint32_t cnt)
+{
+    char*str=(char*)buf;
+    while(cnt){
+        uint32_t key=ioQueueGet(&KeyboardQueue);
+        uint8_t ch=KeyBoardConvertTo(key);
+        //如果读取成功
+        if(ch!=(uint8_t)(-1)){
+            --cnt;
+            *str=ch;
+            ++str;
+        }
+    }
+}
+
+bool IsFunctionKey(uint16_t key)
+{
+    return key>CODE_CTRL_BEGIN&&key<CODE_CTRL_END;
 }

@@ -3,6 +3,8 @@
 #include "../../fs/dir.h"
 #include"../../fs/super_block.h"
 #include "../../fs/inode.h"
+#include "../../device/keyboard.h"
+#include"../../userprog/process.h"
 //////////////////////////////////////////////////
 #define SYSCALL_CNT 128
 //////////////////////////////////////////////////
@@ -20,7 +22,10 @@ pid_t syscall_GetProcessPid(){
 uint32_t syscall_write(uint32_t fd,const byte*buf,uint32_t size){
     //如果fd是标准流
     if(fd==STDOUT_FD){
-         printk("%s",buf);
+         for(uint32_t i=0;i<size;++i){
+            put_char(*buf);
+            ++buf;
+         }
          return size;
     }
     else if(fd>=STD_FD_CNT){
@@ -31,7 +36,8 @@ uint32_t syscall_write(uint32_t fd,const byte*buf,uint32_t size){
     return 0;
 }
 
-uint32_t syscall_sleep(uint32_t msecond){
+int syscall_sleep(uint32_t msecond){
+    //注意这里我们最小堆开的是1024个，所以很可能会sleep失败，这里会出现bug，但是鄙人觉得我的操作系统做不到跑1024个线程，所以才没改
     struct PCB*pcb=RunningThread();
     pcb->TargetDelayTime=msecond+systemTicks;//一次滴答为1ms
     pcb->status=DELAYED;
@@ -84,7 +90,7 @@ int32_t syscall_close(int32_t fd_l){
 }
 int32_t syscall_read(int32_t fd_l,void*buf,uint32_t bytes){
     if(fd_l==STDIN_FD){
-
+        KeyBoardRead(buf,bytes);
     }else if(fd_l>=STD_FD_CNT){
         int fd=LocalFdToGlobalFd(fd_l);
         if(fd==-1)return 0;
@@ -357,6 +363,32 @@ int syscall_stat(const char*path,struct stat*buf){
     return 1;
 }
 //
+int syscall_clear(){
+    Clear_Screen();
+    return 1;
+}
+//
+int syscall_ps(void*buf){
+    struct ListNode*cur=(ThreadList.head.nxt);
+    struct ListNode*end=&(ThreadList.tail);
+    struct ProcessInfo*info=(struct ProcessInfo*)buf;
+    int cnt=0;
+    while(cur!=end){
+        struct PCB*pcb=elem2entry(struct PCB,tag,cur);
+        //
+        info->pid=pcb->pid;
+        info->parent=pcb->pa_pid;
+        info->status=pcb->status;
+        info->totalTicks=pcb->totalTicks;
+        strcpy(info->name,pcb->name);
+        ++cnt;
+        //
+        ++info;
+        cur=cur->nxt;
+    }
+    return cnt;
+}
+//
 void syscall_init()
 {
     put_str("syscall table init start!\n");
@@ -386,6 +418,8 @@ void syscall_init()
     MakeSyscallTable(SYSCALL_CHDIR,(uint32_t)(void*)syscall_chdir,1);
     MakeSyscallTable(SYSCALL_STAT,(uint32_t)(void*)syscall_stat,2);
     MakeSyscallTable(SYSCALL_FORK,(uint32_t)(void*)syscall_fork,0);
+    MakeSyscallTable(SYSCALL_CLEAR,(uint32_t)(void*)syscall_clear,0);
+    MakeSyscallTable(SYSCALL_PS,(uint32_t)(void*)syscall_ps,1);
     ////////////////////////////////////////////////////
     put_str("syscall table init done!\n");
 }
@@ -474,9 +508,9 @@ void free(void *addr)
     syscall(SYSCALL_FREE,addr);
 }
 
-void sleep(uint32_t msecond)
+int sleep(uint32_t msecond)
 {
-    syscall(SYSCALL_SLEEP,msecond);
+    return syscall(SYSCALL_SLEEP,msecond);
 }
 
 int32_t open(const char *filename, uint8_t flag)
@@ -543,4 +577,13 @@ int32_t chdir(const char *dir)
 int stat(const char *path, struct stat* buf)
 {
     return syscall(SYSCALL_STAT,path,buf);
+}
+
+int clear(){
+    return syscall(SYSCALL_CLEAR);
+}
+
+int ps(void *buf)
+{
+    return syscall(SYSCALL_PS,buf);
 }

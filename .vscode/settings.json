@@ -53,6 +53,10 @@
         "cstdint": "c",
         "dir.h": "c",
         "file.h": "c",
-        "atomic": "c"
+        "atomic": "c",
+        "shell.h": "c",
+        "buildin_cmd.h": "c",
+        "text_encoding": "c",
+        "typeinfo": "c"
     }
 }

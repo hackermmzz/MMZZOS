@@ -225,7 +225,7 @@ struct Dir* SearchFile(const char*path,char*buf,struct DirEntry*entry,int32_t*pa
         entry->filetype=FT_DIR;
         entry->index=rootDir.inode->index;
         if(parentIdx)*parentIdx=rootDir.inode->index;//根目录的父目录还是根目录
-        return dirOpen?&rootDir:0;
+        return dirOpen?DirOpen(CurPartition,0):0;
     }
     struct Dir*last;
     last=&rootDir;
