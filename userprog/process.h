@@ -12,4 +12,5 @@ extern void itr_exit();
 void PageDirActivate(struct PCB*pcb);//激活页表
 void ProcessActivate(struct PCB*pcb);//激活页表，并且设置tss的0号栈
 void ProcessExe(void*fileName,char*name);
+void* ProcessCreatePage();
 #endif

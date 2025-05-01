@@ -49,5 +49,6 @@ void* GetOnePage(enum PoolOwner flag,uint32_t vaddr);//将vaddr与一页物理�
 uint32_t MapVaddrToPhyaddr(uint32_t vaddr);//把虚拟地址映射成物理地址
 void* syscall_malloc(uint32_t size);
 uint32_t syscall_free(void*vaddr);
+void*GetOnePageWithoutOpBitmap(enum PoolOwner flag,uint32_t vaddr);
 ///////////////////////////////
 #endif

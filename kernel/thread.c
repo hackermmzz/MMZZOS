@@ -81,6 +81,7 @@ void ThreadInit(struct PCB *pcb, const char *name, uint8_t priority)
     pcb->pageaddr=0;
     pcb->ticks=AllocateTicks(pcb->priority);//分配滴答数
     pcb->pid=PidAllocate();//获取进程pid
+    pcb->pa_pid=-1;//默认没有父进程
     pcb->totalTicks=0;
     pcb->status=READY;//线程初始化时默认状态为就绪态,也就是说创建完毕后就可以执行了
     pcb->workDir=&rootDir;//默认为根目录

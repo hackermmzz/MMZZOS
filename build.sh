@@ -15,6 +15,7 @@ gcc -m32 -c -o build/keyboard.o device/keyboard.c -fno-stack-protector #keyboard
 gcc -m32 -c -o build/ioqueue.o lib/kernel//ioqueue.c -fno-stack-protector #ioQueue.c文件
 gcc -m32 -c -o build/tss.o userprog/tss.c -fno-stack-protector #tss.c文件
 gcc -m32 -c -o build/process.o userprog/process.c -fno-stack-protector #process.c文件
+gcc -m32 -c -o build/fork.o userprog/fork.c -fno-stack-protector #fork.c文件
 gcc -m32 -c -o build/syscall.o lib/user/syscall.c -fno-stack-protector #syscall.c文件
 gcc -m32 -c -o build/stdio.o lib/stdio.c -fno-stack-protector #stdio.c文件
 gcc -m32 -c -o build/minHeap.o lib/kernel/minHeap.c -fno-stack-protector #minHeap.c文件
@@ -30,7 +31,7 @@ nasm -f elf -o build/SwitchTo.o kernel/SwitchTo.asm #编译上下文切换函数
 nasm -I include/ -o boot/loader.bin boot/loader.asm #编译loader文件
 
 cd build
-ld -m elf_i386  -Ttext 0xc0001500 kernel.o dir.o inode.o file.o fs.o  syscall.o  minHeap.o math.o  stdio.o ide.o  aid.o process.o tss.o SwitchTo.o ioqueue.o keyboard.o memory.o thread.o interrupt.o idt_table.o init.o  list.o print.o  printc.o timer.o assert.o string.o bitmap.o -e main -o kernel.bin
+ld -m elf_i386  -Ttext 0xc0001500 kernel.o dir.o inode.o file.o fs.o  syscall.o fork.o minHeap.o math.o  stdio.o ide.o  aid.o process.o tss.o SwitchTo.o ioqueue.o keyboard.o memory.o thread.o interrupt.o idt_table.o init.o  list.o print.o  printc.o timer.o assert.o string.o bitmap.o -e main -o kernel.bin
 dd if=../boot/mbr.bin  of=/home/mmzz/bochs/bochs/bin/hd60M.img  bs=512 count=1 conv=notrunc 
 dd if=../boot/loader.bin  of=/home/mmzz/bochs/bochs/bin/hd60M.img  bs=512 count=5 seek=2 conv=notrunc 
 dd if=kernel.bin  of=/home/mmzz/bochs/bochs/bin/hd60M.img  bs=512 count=200 seek=9 conv=notrunc 

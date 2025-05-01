@@ -367,8 +367,24 @@ void* GetOnePage(enum PoolOwner flag, uint32_t vaddr)
     void*phyaddr=palloc(pool);
     if(phyaddr==0){
         //还需回收虚拟内存
+        MutexRelease(&pool->mutex);
         return 0;
     }
+    AddToPageTable(phyaddr,(void*)vaddr);
+    MutexRelease(&pool->mutex);
+    return (void*)vaddr;
+}
+//与上面紧挨得那个函数唯一的区别就是他不会操作位图
+void*GetOnePageWithoutOpBitmap(enum PoolOwner flag,uint32_t vaddr){
+    struct PhyAddr_Pool*pool=flag==KERNEL?&kernel_pool:&user_pool;
+    MutexAcquire(&pool->mutex);
+    void*phyaddr=palloc(pool);
+    if(phyaddr==0)
+    {
+        MutexRelease(&pool->mutex);
+        return 0;
+    }
+
     AddToPageTable(phyaddr,(void*)vaddr);
     MutexRelease(&pool->mutex);
     return (void*)vaddr;
@@ -379,3 +395,4 @@ uint32_t MapVaddrToPhyaddr(uint32_t vaddr)
     uint32_t* pte=(uint32_t*)PTE_Addr((void*)vaddr);//获取在pte表中的虚拟地址
     return (uint32_t)((*pte &0xfffff000)+(vaddr&0xfff));//实际物理地址(实际上这里前一个&可以去掉，因为保证页起始地址都是4k的倍数)
 }
+

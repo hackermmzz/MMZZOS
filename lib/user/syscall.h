@@ -28,6 +28,7 @@ enum SYSCALL_CODE{
     SYSCALL_GETCWD,
     SYSCALL_CHDIR,
     SYSCALL_STAT,
+    SYSCALL_FORK,
 };//系统调用号
 ////////////////////////////////////////
 void syscall_init();
@@ -56,5 +57,6 @@ int32_t rmdir(const char*path);
 int32_t getcwd(char*buf,uint32_t buff_size);
 int32_t chdir(const char*dir);
 int stat(const char*path,struct stat*buf);
+int32_t fork();
 ////////////////////////////////////////
 #endif

@@ -2,7 +2,7 @@
 void* ProcessCreatePage(){
     uint32_t pde=(uint32_t)mallocKernelPage(1);
     ASSERT(pde);
-    memcpy((void*)(pde),(void*)(0xfffff000),4096);//为了使得用户进程可以访问到内核,把内核页表项copy过去
+    memcpy((void*)(pde+0x300*4),(void*)(0xfffff000+0x300*4),1024);//为了使得用户进程可以访问到内核,把内核页表项copy过去
     uint32_t pagePhyAddr=MapVaddrToPhyaddr(pde);
     ((uint32_t*)pde)[1023]=pagePhyAddr|PG_US_U|PG_RW_W|PG_P_1;//页目录最后一项指向页目录本身
     return (void*)pde;

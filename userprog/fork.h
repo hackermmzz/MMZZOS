@@ -1,0 +1,8 @@
+#ifndef MMZZ_FORK_H
+#define MMZZ_FORK_H
+#include "../kernel/thread.h"
+#include"process.h"
+/////////////////////////////////////////
+int32_t fork();
+/////////////////////////////////////////
+#endif

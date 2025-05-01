@@ -57,6 +57,7 @@ struct ThreadStack{//线程栈
 struct PCB{//程序控制块
     uint32_t kernelStack;//内核栈
     pid_t pid;//进程的pid
+    pid_t pa_pid;//父进程pid
     enum ThreadStatus status;
     uint8_t priority;
     char name[16];

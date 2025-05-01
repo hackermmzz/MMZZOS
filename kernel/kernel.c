@@ -6,15 +6,13 @@
 #include"../fs/file.h"
 void idle_task_func(void*arg);
 void test(void*arg);
-void test1(void*arg);
 int main(){
     //初始
     MMZZOS_Init();
     //创建闲置任务
     idle_task=ThreadCreate("idle_task",1,idle_task_func,0);
     //
-    ProcessExe(test1,"pro1");
-    ThreadCreate("test0",1,test,0);
+    ProcessExe(test,"pro1");
     asm("sti");
     //初始化文件系统
     FileSystem_init();
@@ -50,11 +48,8 @@ void idle_task_func(void*arg){
     }
 }
 void test(void*arg){
-    while(1){
-       
-    }
-}
-void test1(void*arg){
+    sleep(1000);
+    int fd=fork();
     while(1){
         
     }

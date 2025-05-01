@@ -364,6 +364,7 @@ void syscall_init()
     memset(syscall_ArgInfo,-1,sizeof(syscall_ArgInfo));
     extern void* syscall_malloc(uint32_t);
     extern uint32_t syscall_free(void*);
+    extern int32_t syscall_fork();
     ///////////////////////////////////////////////////
     MakeSyscallTable(SYSCALL_GETPID,(uint32_t)(void*)syscall_GetProcessPid,0);
     MakeSyscallTable(SYSCALL_WRITE,(uint32_t)(void*)syscall_write,3);
@@ -384,6 +385,7 @@ void syscall_init()
     MakeSyscallTable(SYSCALL_GETCWD,(uint32_t)(void*)syscall_getcwd,2);
     MakeSyscallTable(SYSCALL_CHDIR,(uint32_t)(void*)syscall_chdir,1);
     MakeSyscallTable(SYSCALL_STAT,(uint32_t)(void*)syscall_stat,2);
+    MakeSyscallTable(SYSCALL_FORK,(uint32_t)(void*)syscall_fork,0);
     ////////////////////////////////////////////////////
     put_str("syscall table init done!\n");
 }
