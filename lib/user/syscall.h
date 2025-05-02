@@ -2,9 +2,6 @@
 #define MMZZ_SYSCALL_H
 #include "../stdint.h"
 #include <stdarg.h>
-#include "../kernel/print.h"
-#include "../../kernel/thread.h"
-#include "../../device/timer.h"
 ////////////////////////////////////////
 struct stat;
 ////////////////////////////////////////
@@ -31,6 +28,7 @@ enum SYSCALL_CODE{
     SYSCALL_FORK,
     SYSCALL_CLEAR,
     SYSCALL_PS,//获取系统目前所有的进程信息
+    SYSCALL_EXEC,
 };//系统调用号
 ////////////////////////////////////////
 void syscall_init();
@@ -62,5 +60,6 @@ int stat(const char*path,struct stat*buf);
 int32_t fork();
 int clear();
 int ps(void*buf);
+int exec(const char*path,int32_t argc,char**argv);
 ////////////////////////////////////////
 #endif

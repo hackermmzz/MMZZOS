@@ -12,6 +12,23 @@ int main(){
     asm("sti");
     //初始化文件系统
     FileSystem_init();
+    //把文件写入磁盘
+    /*
+    struct disk*dk=&ide_channel[0].devices[0];
+    uint32_t sec=30;
+    void*buf=malloc(sec*512);
+    ide_read(dk,buf,300,sec);
+    int fd=open("/test.bin",O_CREATE);
+    int cnt=write(fd,buf,sec*512);
+    printf("You have write %d!\n",cnt);
+    close(fd);
+    fd=open("/test.bin",O_RDONLY);
+    void*buff=malloc(sec*512);
+    ASSERT(read(fd,buff,cnt)==cnt);
+    printf("memcpy res is:%d\n",memcmp(buf,buff,sec*512));
+    while(1);
+    */
+    //
     AllInit=1;
     while(1);
     return 0;

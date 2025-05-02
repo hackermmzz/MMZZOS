@@ -120,3 +120,16 @@ void* memcpy(void *dst, const void *src, uint32_t size)
     }
     return dst;
 }
+
+int memcmp(const void *src0, const void *src1, int cnt)
+{
+    byte*s0=(byte*)src0;
+    byte*s1=(byte*)src1;
+    for(int i=0;i<cnt;++i,++s0,++s1){
+        uint8_t a=*s0;
+        uint8_t b=*s1;
+        if(a<b)return -1;
+        else if(a>b)return 1;
+    }
+    return 0;
+}

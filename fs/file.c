@@ -173,15 +173,15 @@ int32_t AllocateIndirectBlock(struct partition*part,struct Inode*inode,void*buf)
         if(idx0!=-1){
             idx1=BlockBitmapAllocate(part);
             if(idx1!=-1){
-                memset(buf,0,sizeof(SECTOR_SIZE));
-                *(uint32_t*)buf=idx0;
+                memset(buf,0,SECTOR_SIZE);
+                *(uint32_t*)buf=idx1+part->sb->data_lba;
                 ide_write(part->my_disk,buf,part->sb->data_lba+idx0,1);//将表写入磁盘
                 //同步block表
                 BitMapUpdate(part,idx0,BITMAP_FOR_BLOCK);
                 BitMapUpdate(part,idx1,BITMAP_FOR_BLOCK);
                 //同步inode
                 inode->i_sectors[12]=idx0+part->sb->data_lba;
-                return idx1;
+                return idx1+part->sb->data_lba;
             }
             else{
                 BitMapReset(&(part->block_bitmap),idx0);
@@ -230,6 +230,13 @@ uint32_t file_write(int32_t fd,const void*buf,uint32_t size){
     void*buff=syscall_malloc(SECTOR_SIZE);
     ASSERT(buff);
     //
+    uint32_t addr[140];
+    memset(addr,0,sizeof(addr));
+    memcpy(addr,file->inode->i_sectors,48);
+    if(file->inode->i_sectors[12]){
+        ide_read(CurPartition->my_disk,addr+12,file->inode->i_sectors[12],1);
+    }
+    //
     uint32_t *pos=&(file->fd_pos);
     int32_t write=0;
     int32_t idx0=(*pos)/SECTOR_SIZE;//当前所在的块
@@ -247,7 +254,7 @@ uint32_t file_write(int32_t fd,const void*buf,uint32_t size){
         nxtWrite=min(nxtWrite,fillSecotor);
         //申请一个区块
         int index;
-        if(file->inode->i_sectors[idx0])index=file->inode->i_sectors[idx0];
+        if(addr[idx0])index=addr[idx0];
         else index=AllocateOneSector(CurPartition,file->inode,idx0,buff);
         if(index==-1)break;
         //如果是读写模式打开,并且当前写入的位置小于源文件大小,肯定要先读取扇区
@@ -278,27 +285,24 @@ int32_t file_read(int32_t fd,void*buf,uint32_t cnt){
     //
     struct FILE*file=&(GlobalFileTable[fd]);
     ASSERT(file->inode);
+    //先用内核栈内存吧
+    byte buff[SECTOR_SIZE];
+   // ASSERT(buff);
     //
-    void*buff=syscall_malloc(SECTOR_SIZE);
-    ASSERT(buff);
-    //
-    uint32_t*addr=syscall_malloc(140*4);//存储所有的块地址
-    ASSERT(addr);
-    memcpy(addr,file->inode->i_sectors,sizeof(uint32_t)*12);
+    uint32_t addr[140];
+    memset(addr,0,sizeof(addr));
+    memcpy(addr,file->inode->i_sectors,48);
     if(file->inode->i_sectors[12])
-    ide_read(CurPartition->my_disk,(void*)(((uint32_t)addr)+48),file->inode->i_sectors[12],1);//读取出所有的间接块地址
+    ide_read(CurPartition->my_disk,addr+12,file->inode->i_sectors[12],1);//读取出所有的间接块地址
     //
     int32_t curRead=0;
     uint32_t*pos=&(file->fd_pos);
     int idx0=(*pos)/SECTOR_SIZE;
     int fileSize=file->inode->size;
     int curP=*pos;
-    while(cnt&&curP<fileSize&idx0<140){
-        int sectorLeft=(idx0+1)*SECTOR_SIZE-curP;
-        if(sectorLeft==0){
-            ++idx0;
-            continue;
-        }
+    while(cnt&&curP<fileSize&&idx0<140){
+        int off=curP%SECTOR_SIZE;
+        int sectorLeft=SECTOR_SIZE-off;
         if(addr[idx0]==0)break;
         //
         int needRead=min(SECTOR_SIZE,cnt);
@@ -306,15 +310,14 @@ int32_t file_read(int32_t fd,void*buf,uint32_t cnt){
         needRead=min(needRead,fileSize-curP);
         //读取一个扇区
         ide_read(CurPartition->my_disk,buff,addr[idx0],1);
-        memcpy((void*)(((uint32_t)buf)+curRead),buff,needRead);
+        memcpy((void*)(((uint32_t)buf)+curRead),(void*)(((uint32_t)buff)+off),needRead);
         //
         curRead+=needRead;
         cnt-=needRead;
         curP+=needRead;
+        ++idx0;
     }
     //
-    syscall_free(buff);
-    syscall_free(addr);
     //
     file->fd_pos=curP;
     //

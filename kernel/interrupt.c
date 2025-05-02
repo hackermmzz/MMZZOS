@@ -106,9 +106,9 @@ void general_interrupt_process(uint8_t code)
     if(code==0x27||code==0x2f){//这两个中断不必理会
         return;
     }
-    put_str("code:");put_num(code);put_char('\n');
-    put_str(interrupt_name[code]);
-    put_char('\n');
+    struct PCB*pcb=RunningThread();
+    struct InterruptStack*stack=(struct InterruptStack*)(((uint32_t)pcb+PAGE_SIZE)-sizeof(struct InterruptStack));
+    printk("Error Code:%d\nError Name:%s\nEip:%x\nEsp:%x\n",code,interrupt_name[code],stack->eip,stack->esp);
     PANIC_MACRO("HERE!\n");
 }
 

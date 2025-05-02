@@ -3,6 +3,7 @@
 #include"../lib/user/syscall.h"
 #include"../device/keyboard.h"
 #include"../userprog/process.h"
+#include"../userprog/exec.h"
 #include"buildin_cmd.h"
 char cmd_buf[CMD_MAX_LEN+1];
 char cmd_cwd[MAX_PATH_LEN+1];//当前shell工作所在的目录
@@ -116,6 +117,27 @@ bool ProcessBuildin_CMD(int argc,char**argv){
     }
     return 0;
 }
+
+bool ProcessExternal_CMD(int argc,char*argv[]){
+    int32_t pid=fork();
+    if(pid){
+        while(1);
+    }else{
+        char path[MAX_PATH_LEN+1];
+        GetAbsolutePath(argv[0],path);
+        //先判断文件是否存在
+        struct stat state;
+        memset(&state,0,sizeof(state));
+        stat(path,&state);
+        if(state.filetype!=FT_FILE){
+            printf("Error:can't access %s!\n",argv[0]);
+        }else{
+            exec(path,argc,argv);
+        }
+        while(1);
+    }
+    return 1;
+}
 void ShellExec(){
     //解析字符
     int argc=shellCmdParse();
@@ -128,7 +150,9 @@ void ShellExec(){
     //如果是内部命令
     if(ProcessBuildin_CMD(argc,cmd_argv))return;
     //反之为外部命令
-    printf("can't find cmd called: %s\n",cmd_argv[0]);
+    if(ProcessExternal_CMD(argc,cmd_argv))return;
+    //反之找不到命令
+    printf("Can't find command named: %s\n",cmd_argv[0]);
 }
 
 void shell()

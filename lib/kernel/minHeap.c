@@ -1,5 +1,7 @@
 #include "minHeap.h"
 #include "../user/syscall.h"
+#include"../../kernel/interrupt.h"
+#include"../../kernel/memory.h"
 void MinHeapInit(MinHeap *heap, MinHeapFunc cmp, uint32_t maxCnt)
 {
     //分配内存

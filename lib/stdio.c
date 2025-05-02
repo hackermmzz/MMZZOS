@@ -63,7 +63,7 @@ int printf(const char*format,...){
     va_start(arg,format);
     char buf[1024];
     int len=vfprintf(buf,format,arg);
-    syscall(SYSCALL_WRITE,STDOUT_FD,buf,len);
+    write(STDOUT_FD,buf,len);
     va_end(arg);
     return len;
 }
@@ -79,7 +79,7 @@ int sprintf(char *buf, const char *format, ...)
 
 int getchar(){
     char ret;
-    syscall(SYSCALL_READ,STDIN_FD,&ret,1);
+    read(STDIN_FD,&ret,1);
     return ret;
 }
 
