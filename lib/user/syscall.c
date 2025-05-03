@@ -138,3 +138,12 @@ int exec(const char *path, int32_t argc, char **argv)
     return Syscall3(SYSCALL_EXEC,(int)path,argc,(int)argv);
 }
 
+pid_t wait(int32_t *status)
+{
+    return Syscall1(SYSCALL_WAIT,(int)status);
+}
+
+void exit(int status)
+{
+    Syscall1(SYSCALL_EXIT,(int)(int8_t)status);
+}

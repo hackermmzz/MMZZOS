@@ -28,7 +28,7 @@ bool SegmentLoad(int32_t fd,uint32_t offset,uint32_t filesize,uint32_t vaddr){
         }
     }
     //
-    bool flag=syscall_seek(fd,offset,SEEK_SET);
+    bool flag=syscall_seek(fd,offset,SEEK_SET)!=-1;
     int32_t size=syscall_read(fd,(void*)vaddr,filesize);
     return flag&&(size==filesize);
 }
@@ -103,6 +103,7 @@ int32_t syscall_exec(const char*path,int32_t argc,char*argv[]){
     stack->eip=(uint32_t)entryPoint;
     stack->esp=(uint32_t)0xc0000000;//用户进程的栈地址为用户进程虚拟地址最高地址
     //
+    
     asm volatile("movl %0,%%esp;jmp itr_exit"::"g"(stack):"memory");
     return 0;
 }

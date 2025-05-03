@@ -40,7 +40,7 @@ void SemaphoreDec(struct Semaphore *sem)
     while(sem->value==0){//信号量为0,阻塞当前线程
         struct PCB*cur=RunningThread();
         ListPushBack(&(sem->wait),&(cur->tagForSemaphore));
-        ThreadBlock();//阻塞当前线程
+        ThreadBlock(BLOCKED);//阻塞当前线程
     }
     sem->value--;
     if(old)interrupt_enable();
@@ -115,8 +115,6 @@ uint8_t AllocateTicks(uint8_t priority)
 }
 
 void InitKernalThread(){
-    //初始化pid锁
-    MutexInit(&pidLock);
     //
     mainThread=RunningThread();//当前正在运行得线程就是内核线程
     ThreadInit(mainThread,"kernel",1);
@@ -151,7 +149,7 @@ bool DelayMinHeapCMP(MinHeapNode node0,MinHeapNode node1){
 //
 void idle_task_func(void*arg){
     while(1){
-        ThreadBlock();
+        ThreadBlock(BLOCKED);
         asm volatile("sti;hlt ":::"memory");
     }
 }
@@ -166,15 +164,18 @@ void init_thread()
     ListInit(&BlockList);
     ListInit(&DelayList);
     ListInit(&ThreadList);
+    //初始化pid锁
+    MutexInit(&pidLock);
     //初始化最小堆
     MinHeapInit(&DelayMinHeap,DelayMinHeapCMP,DelayMinHeapMaxCnt);
+    //创建init进程
+    extern void init(void*);
+    ProcessExe((void*)init,"init");
     //初始化内核主线程
     InitKernalThread();
     //创建闲置任务
     idle_task=ThreadCreate("idle_task",1,idle_task_func,0);
-    //创建init进程
-    extern void init(void*);
-    ProcessExe((void*)init,"init");
+    
     //
     put_str("thred init done!\n");
 }
@@ -186,7 +187,7 @@ void schedule()
     struct PCB*cur=RunningThread();
     if(cur->status==RUNNING){//如果当前任务正在运行
         ExchangeThreadToReady(cur);
-    }else if(cur->status==BLOCKED){//当前任务从运行态被阻塞
+    }else if(cur->status==BLOCKED||cur->status==HANGING||cur->status==WAITING){//当前任务从运行态被阻塞
         ListPushBack(&BlockList,&(cur->tagS));//放入阻塞队列
     }else if(cur->status==DELAYED){//当前任务从运行态被延迟
         ListPushBack(&DelayList,&(cur->tagS));
@@ -211,15 +212,16 @@ void schedule()
     SwitchTo(cur,nxt);
 }
 
-void ThreadBlock()
+void ThreadBlock(enum ThreadStatus status)
 {
+    ASSERT(status==BLOCKED||status==HANGING||status==WAITING);
     uint8_t old=interrupt_status();
     interrupt_disable();
     //////////////////////////////////
     struct PCB*pcb=RunningThread();//获取当前运行的线程
     ASSERT(pcb->status==RUNNING);//只有运行态的程序才可能被阻塞
 
-    pcb->status=BLOCKED;
+    pcb->status=status;
     schedule();
     //////////////////////////////////
     if(old)interrupt_enable();
@@ -260,10 +262,39 @@ pid_t PidAllocate()
     return ret;
 }
 
+void PidRecycle(pid_t pid)
+{
+    //先啥也不干，日后优化
+    return;
+}
+
 void SleepWithoutHang(uint32_t msecond)
 {
     uint32_t end=systemTicks+msecond;
     while(end<=systemTicks){
         Thread_Yield();
     }
+}
+
+void ThreadExit(struct PCB *pcb,bool needSchuedule)
+{
+    uint8_t old=interrupt_status();
+    interrupt_disable();
+    //
+    pcb->status=DIED;
+    //从队列中移除
+    ListRemove(0,&(pcb->tag));
+    ListRemove(0,&(pcb->tagS));
+    //回收页框所占的一页内存
+    if(pcb->pageaddr)free_page(KERNEL,(uint32_t)pcb->pageaddr,1);
+    //回收pid
+    PidRecycle(pcb->pid);
+    //回收pcb所占的一页内存
+    if(pcb!=mainThread)free_page(KERNEL,(uint32_t)pcb,1);
+    //判断是否需要调度(正常情况不用，但是如果是那种内核主线程啥的，他们死亡后是没有返回地址的，直接调度即可)
+    if(needSchuedule){
+        schedule();
+    }
+    //
+    if(old)interrupt_enable();
 }

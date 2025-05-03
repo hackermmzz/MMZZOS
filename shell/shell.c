@@ -121,7 +121,9 @@ bool ProcessBuildin_CMD(int argc,char**argv){
 bool ProcessExternal_CMD(int argc,char*argv[]){
     int32_t pid=fork();
     if(pid){
-        while(1);
+        int status;
+        int chPid=wait(&status);
+        ASSERT(chPid==pid);
     }else{
         char path[MAX_PATH_LEN+1];
         GetAbsolutePath(argv[0],path);

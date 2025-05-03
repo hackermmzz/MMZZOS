@@ -14,15 +14,21 @@ int main(){
     FileSystem_init();
     //把文件写入磁盘
     /*
+    {
+        int fd=open("/config.txt",O_CREATE);
+        char message[]="WangLiHong will earn more than 50w money per year!And he will make more girl friends in future!";
+        write(fd,message,sizeof(message));
+        close(fd);
+    }
     struct disk*dk=&ide_channel[0].devices[0];
     uint32_t sec=30;
     void*buf=malloc(sec*512);
     ide_read(dk,buf,300,sec);
-    int fd=open("/test.bin",O_CREATE);
+    int fd=open("/cat",O_CREATE);
     int cnt=write(fd,buf,sec*512);
     printf("You have write %d!\n",cnt);
     close(fd);
-    fd=open("/test.bin",O_RDONLY);
+    fd=open("/cat",O_RDONLY);
     void*buff=malloc(sec*512);
     ASSERT(read(fd,buff,cnt)==cnt);
     printf("memcpy res is:%d\n",memcmp(buf,buff,sec*512));
@@ -30,7 +36,8 @@ int main(){
     */
     //
     AllInit=1;
-    while(1);
+    //退出主线程
+    ThreadExit(RunningThread(),1);
     return 0;
 } 
 

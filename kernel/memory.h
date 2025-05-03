@@ -50,5 +50,6 @@ uint32_t MapVaddrToPhyaddr(uint32_t vaddr);//把虚拟地址映射成物理地�
 void* syscall_malloc(uint32_t size);
 uint32_t syscall_free(void*vaddr);
 void*GetOnePageWithoutOpBitmap(enum PoolOwner flag,uint32_t vaddr);
+void FreeOnePhyPage(void* phyAddr);//释放一页物理内存(把对应的位图置0)
 ///////////////////////////////
 #endif

@@ -26,7 +26,7 @@ void ioQueuePut(struct ioQueue *queue, uint32_t data)
         MutexAcquire(&(queue->lock));
         //
         queue->producer=RunningThread();
-        ThreadBlock();
+        ThreadBlock(BLOCKED);
         //
         MutexRelease(&(queue->lock));
     }
@@ -50,7 +50,7 @@ uint32_t ioQueueGet(struct ioQueue *queue)
         MutexAcquire(&(queue->lock));
         //
         queue->consumer=RunningThread();
-        ThreadBlock();
+        ThreadBlock(BLOCKED);
         //
         MutexRelease(&(queue->lock));
     }

@@ -58,6 +58,7 @@
         "buildin_cmd.h": "c",
         "text_encoding": "c",
         "typeinfo": "c",
-        "exec.h": "c"
+        "exec.h": "c",
+        "wait_exit.h": "c"
     }
 }

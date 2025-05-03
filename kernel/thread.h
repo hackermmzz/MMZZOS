@@ -19,8 +19,11 @@ extern struct PCB*idle_task;//闲置任务,保证每时每刻都会有任务运�
 enum ThreadStatus{
     RUNNING,//运行态
     BLOCKED,//阻塞态
+    HANGING,//挂起态
+    WAITING,//进程等待子进程退出
     DELAYED,//延时
     READY,//就绪态
+    DIED,//死亡
 };
 struct InterruptStack{//中断栈,产生中断后,进入到中断处理函数前的栈内存布局
     uint32_t code;//中断号
@@ -75,6 +78,7 @@ struct PCB{//程序控制块
     uint32_t stackMagic;//用于检测栈溢出
     int32_t fd[MAX_FILE_CNT_OPEN_PROCESS];//
     struct Dir* workDir;//工作所在目录的inode编号
+    int8_t exit_status;//退出状态
 };
 //信号量
 struct Semaphore{
@@ -100,10 +104,12 @@ uint8_t AllocateTicks(uint8_t priority);//根据优先级分配滴答数
 void InitKernalThread();//初始化内核主线程
 void init_thread();//初始化线程环境
 void schedule(); //对线程进行调度
-void ThreadBlock();//阻塞线程
+void ThreadBlock(enum ThreadStatus status);//阻塞线程
 void Thread_Yield();//直接调度线程,当然只能给内核线程使用哈
 void ThreadUnBlock(struct PCB*pcb);//解除阻塞状态
 pid_t PidAllocate();
+void PidRecycle(pid_t pid);
 void SleepWithoutHang(uint32_t msecond);//休眠函数,与sleep区别是,他并不会被放入最小堆，就是单纯的调度线程
+void ThreadExit(struct PCB*pcb,bool needSchuedule);//回收线程的页表和pcb,并且从所有线程队列中移除线程
 //////////////////////////////
 #endif

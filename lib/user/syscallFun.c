@@ -8,6 +8,7 @@
 #include "../kernel/print.h"
 #include "../../kernel/thread.h"
 #include "../../device/timer.h"
+#include"../../userprog/wait_exit.h"
 /*
 这里实现了所有的和系统调用相关的函数，把他单独放在这一个文件里面!!!这里实现了所有的和系统调用相关的函数，把他单独放在这一个文件里面!!!
 这里实现了所有的和系统调用相关的函数，把他单独放在这一个文件里面!!!这里实现了所有的和系统调用相关的函数，把他单独放在这一个文件里面!!!
@@ -110,18 +111,18 @@ int32_t syscall_read(int32_t fd_l,void*buf,uint32_t bytes){
 
 int32_t syscall_seek(int32_t fd,int32_t offset,uint32_t flag){
     fd=LocalFdToGlobalFd(fd);
-    if(fd==-1)return 0;
+    if(fd==-1)return -1;
     int32_t fileSize=GlobalFileTable[fd].inode->size;
     int32_t pos=GlobalFileTable[fd].fd_pos;
     int32_t newpos;
     if(flag==SEEK_SET)newpos=offset;
     else if(flag==SEEK_CUR)newpos=pos+offset;
     else if(flag==SEEK_END)newpos=fileSize+offset;
-    if(newpos<0||newpos>=fileSize){
-        return 0;
+    if(newpos<0||newpos>fileSize){
+        return -1;
     }
     GlobalFileTable[fd].fd_pos=newpos;
-    return 1;
+    return newpos;
 }
 
 int32_t syscall_unlink(const char*file){
@@ -430,6 +431,8 @@ void syscall_init()
     MakeSyscallTable(SYSCALL_CLEAR,(uint32_t)(void*)syscall_clear,0);
     MakeSyscallTable(SYSCALL_PS,(uint32_t)(void*)syscall_ps,1);
     MakeSyscallTable(SYSCALL_EXEC,(uint32_t)(void*)syscall_exec,3);
+    MakeSyscallTable(SYSCALL_WAIT,(uint32_t)(void*)syscall_wait,1);
+    MakeSyscallTable(SYSCALL_EXIT,(uint32_t)(void*)syscall_exit,1);
     ////////////////////////////////////////////////////
     put_str("syscall table init done!\n");
 }

@@ -390,6 +390,16 @@ void*GetOnePageWithoutOpBitmap(enum PoolOwner flag,uint32_t vaddr){
     return (void*)vaddr;
 }
 
+void FreeOnePhyPage(void *phyAddr)
+{
+    struct PhyAddr_Pool*pool=&kernel_pool;
+    if(((uint32_t)phyAddr)>=user_pool.addr_start){
+        pool=&user_pool;
+    }
+    uint32_t idx=((uint32_t)phyAddr-pool->addr_start)/PAGE_SIZE;
+    BitMapReset(&(pool->bp),idx);
+}
+
 uint32_t MapVaddrToPhyaddr(uint32_t vaddr)
 {
     uint32_t* pte=(uint32_t*)PTE_Addr((void*)vaddr);//获取在pte表中的虚拟地址
