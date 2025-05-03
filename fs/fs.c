@@ -218,6 +218,12 @@ dirNeed表示最后解析成功的目录项是否打开，若打开返回打开�
 若文件存在或者没有解析到最后一层，返回0，反之返回最后一层父目录
 */
 struct Dir* SearchFile(const char*path,char*buf,struct DirEntry*entry,int32_t*parentIdx,bool dirOpen){
+    //如果path第一个字符不是/,路径不合法，直接返回
+    if(path[0]!='/'){
+        entry->filetype=FT_UNKOWN;
+        if(parentIdx)*parentIdx=-1;
+        return 0;
+    }
     //根目录直接返回
     if(!strcmp(path,"/")||!strcmp(path,"/..")||!strcmp(path,"/.")){
         *buf=0;
