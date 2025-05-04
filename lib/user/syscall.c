@@ -147,3 +147,13 @@ void exit(int status)
 {
     Syscall1(SYSCALL_EXIT,(int)(int8_t)status);
 }
+
+bool pipe(int fd[2])
+{
+    return Syscall1(SYSCALL_PIPE,(int)fd);
+}
+
+bool fd_redirect(int32_t old, int32_t new)
+{
+    return Syscall2(SYSCALL_FDREDIRECT,old,new);
+}

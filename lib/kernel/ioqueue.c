@@ -9,15 +9,18 @@ void ioQueueInit(struct ioQueue *queue)
 
 bool ioQueueFull(struct ioQueue *queue)
 {
-    return IOQUEUE_NEXTPOS(queue->tail)==queue->head;
+    return IOQUEUE_NEXTPOS(queue,queue->head)==queue->tail;
 }
 
 bool ioQueueEmpty(struct ioQueue *queue)
 {
     return queue->head==queue->tail;
 }
-
-void ioQueuePut(struct ioQueue *queue, uint32_t data)
+uint32_t ioQueueLen(struct ioQueue*queue){
+    if(queue->tail<=queue->head)return queue->head-queue->tail;
+    return queue->len+queue->head-queue->tail;
+}
+void ioQueuePut(struct ioQueue *queue, byte data)
 {
     uint8_t old=interrupt_status();
     interrupt_disable();
@@ -31,7 +34,7 @@ void ioQueuePut(struct ioQueue *queue, uint32_t data)
         MutexRelease(&(queue->lock));
     }
     queue->buff[queue->head]=data;
-    queue->head=IOQUEUE_NEXTPOS(queue->head);
+    queue->head=IOQUEUE_NEXTPOS(queue,queue->head);
 
     if(queue->consumer){
         ThreadUnBlock(queue->consumer);
@@ -41,7 +44,7 @@ void ioQueuePut(struct ioQueue *queue, uint32_t data)
     if(old)interrupt_enable();
 }
 
-uint32_t ioQueueGet(struct ioQueue *queue)
+byte ioQueueGet(struct ioQueue *queue)
 {
     uint8_t old=interrupt_status();
     interrupt_disable();
@@ -54,8 +57,8 @@ uint32_t ioQueueGet(struct ioQueue *queue)
         //
         MutexRelease(&(queue->lock));
     }
-    uint32_t dat=queue->buff[queue->tail];
-    queue->tail=IOQUEUE_NEXTPOS(queue->tail);
+    byte dat=queue->buff[queue->tail];
+    queue->tail=IOQUEUE_NEXTPOS(queue,queue->tail);
 
     if(queue->producer){
         ThreadUnBlock(queue->producer);

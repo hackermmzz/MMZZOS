@@ -65,7 +65,7 @@ void BitMapUpdate(struct partition*part,uint32_t idx,enum FS_BITMAP_TYPE flag){
     ide_write(part->my_disk,buf,lba,1);
 }
 int32_t LocalFdToGlobalFd(int32_t fd_l){
-    ASSERT(fd_l>=0&&fd_l<MAX_FILE_CNT_OPEN_PROCESS);
+    if(fd_l<0||fd_l>=MAX_FILE_CNT_OPEN_PROCESS)return -1;
     struct PCB*pcb=RunningThread();
     return pcb->fd[fd_l];
 }

@@ -63,7 +63,8 @@ int printf(const char*format,...){
     va_start(arg,format);
     char buf[1024];
     int len=vfprintf(buf,format,arg);
-    write(STDOUT_FD,buf,len);
+    int total=0,left=len;
+    while((total+=write(STDOUT_FD,buf+total,left))!=left)left=len-total;//必须保证循环写入
     va_end(arg);
     return len;
 }
@@ -79,8 +80,28 @@ int sprintf(char *buf, const char *format, ...)
 
 int getchar(){
     char ret;
-    read(STDIN_FD,&ret,1);
+    int cnt=read(STDIN_FD,&ret,1);
+    if(cnt==0)return -1;//没有读到
     return ret;
+}
+
+int getline(void *buf, int32_t size)
+{
+    char*buf_=buf;
+    int cur=0;
+    while(cur!=size){
+        int ch=getchar();
+        if(ch==-1||ch=='\n')
+        {
+            *buf_=0;
+            return cur;
+        }
+        *buf_=ch;
+        ++buf_;
+        ++cur;
+    }
+    *buf_=0;
+    return size;
 }
 
 int putchar(int ch){

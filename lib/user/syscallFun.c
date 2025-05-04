@@ -9,12 +9,15 @@
 #include "../../kernel/thread.h"
 #include "../../device/timer.h"
 #include"../../userprog/wait_exit.h"
+#include"../kernel/ioqueue.h"
 /*
 这里实现了所有的和系统调用相关的函数，把他单独放在这一个文件里面!!!这里实现了所有的和系统调用相关的函数，把他单独放在这一个文件里面!!!
 这里实现了所有的和系统调用相关的函数，把他单独放在这一个文件里面!!!这里实现了所有的和系统调用相关的函数，把他单独放在这一个文件里面!!!
 这里实现了所有的和系统调用相关的函数，把他单独放在这一个文件里面!!!这里实现了所有的和系统调用相关的函数，把他单独放在这一个文件里面!!!
 */
 //////////////////////////////////////////////////
+#define MIN(a,b)  ((a)<(b)?(a):(b))
+#define MAX(a,b)  ((a)>(b)?(a):(b))
 #define SYSCALL_CNT 128
 //////////////////////////////////////////////////
 uint32_t syscall_table[SYSCALL_CNT+1];//
@@ -28,9 +31,94 @@ pid_t syscall_GetProcessPid(){
     struct PCB*pcb=RunningThread();
     return pcb->pid;
 }
+//判断fd文件描述符是否是管道
+bool IsPipe(int32_t fd){
+    fd=LocalFdToGlobalFd(fd);
+    if(fd==-1)return 0;
+    return GlobalFileTable[fd].flag==PIPE_FLAG;
+}
+//
+bool syscall_pipe(int fd[2]){
+    int32_t fd_g=GetFreeGlobalFd();
+    struct FILE*file=&GlobalFileTable[fd_g];
+    if(fd_g==-1)return 0;
+    void*buf=mallocKernelPage(1);
+    if(buf==0){
+        file->inode=0;
+        return 0;
+    }
+    file->inode=buf;
+    file->flag=PIPE_FLAG;
+    file->fd_pos=2;//读写各占一次
+    //安装到进程
+    fd[0]=ProcessInstallFd(fd_g);
+    fd[1]=ProcessInstallFd(fd_g);
+    if(fd[0]==-1||fd[1]==-1){
+        struct PCB*pcb=RunningThread();
+        if(fd[0]!=-1)pcb->fd[fd[0]]=-1;
+        if(fd[1]!=-1)pcb->fd[fd[1]]=-1;
+        file->inode=0;
+        free_page(KERNEL,(uint32_t)buf,1);
+        return 0;
+    }
+    //初始化管道
+    struct ioQueue*queue=buf;
+    ioQueueInit(queue);
+    queue->len=PAGE_SIZE-sizeof(*queue);
+    queue->buff=(uint8_t*)((uint32_t)buf+sizeof(*queue));
+    return 1;
+}
+
+int32_t pipe_read(int32_t fd,void*buf,uint32_t cnt){
+    fd=LocalFdToGlobalFd(fd);
+    if(fd==-1)return 0;
+    struct ioQueue*queue=(struct ioQueue*)(GlobalFileTable[fd].inode);
+    uint32_t bufLen=ioQueueLen(queue);
+    cnt=MIN(cnt,bufLen);//最多读取队列当前含有数据的数量
+    byte*buf_=buf;
+    uint32_t read=0;
+    while(cnt--){
+        *buf_=ioQueueGet(queue);
+        ++buf_;
+        ++read;
+    }
+    return read;
+}
+int32_t pipe_write(int32_t fd,const void*buf,uint32_t cnt){
+    fd=LocalFdToGlobalFd(fd);
+    if(fd==-1)return 0;
+    struct ioQueue*queue=(struct ioQueue*)(GlobalFileTable[fd].inode);
+    uint32_t bufLeft=queue->len-ioQueueLen(queue);
+    cnt=MIN(cnt,bufLeft);//最多写入剩余的空间数量
+    const byte*buf_=buf;
+    uint32_t write=0;
+    while(cnt--){
+        ioQueuePut(queue,*buf_);
+        ++buf_;
+        ++write;
+    }
+    return write;
+}
+bool pipe_close(int32_t fd_l){
+    if(fd_l<STD_FD_CNT||fd_l>+MAX_FILE_CNT_OPEN_PROCESS)return 0;
+    struct PCB*pcb=RunningThread();
+    int32_t fd_g=pcb->fd[fd_l];
+    pcb->fd[fd_l]=-1;
+    if(fd_g==-1)return 0;
+    struct FILE*file=&GlobalFileTable[fd_g];
+    if(--(file->fd_pos)==0){
+        free_page(KERNEL,(uint32_t)file->inode,1);
+        file->inode=0;//回收全局文件描述符
+    }
+    return 1;
+}
 uint32_t syscall_write(uint32_t fd,const byte*buf,uint32_t size){
+    //如果是管道(标准输入输出流都可能被重定向为管道)
+    if(IsPipe(fd)){
+        return pipe_write(fd,buf,size);
+    }
     //如果fd是标准流
-    if(fd==STDOUT_FD){
+    else if(fd==STDOUT_FD){
          for(uint32_t i=0;i<size;++i){
             put_char(*buf);
             ++buf;
@@ -83,23 +171,31 @@ int32_t syscall_open(const char*file,uint32_t flag){
 }
 
 int32_t syscall_close(int32_t fd_l){
-    if(fd_l<STD_FD_CNT)return 0;//标准输入输出流等都不允许关闭
-    struct PCB*pcb=RunningThread();
-    int fd_g=LocalFdToGlobalFd(fd_l);
-    pcb->fd[fd_l]=-1;//关闭局部描述符
-    if(fd_g==-1)return 0;//关闭失败
-    //
-    struct FILE*file=&(GlobalFileTable[fd_g]);
-    if(file->inode){
-        InodeClose(file->inode);
-        file->inode=0;//回收全局描述符
-        return 1;//关闭成功
+    //如果是管道
+    if(IsPipe(fd_l)){
+        return pipe_close(fd_l);
+    }else if(fd_l>=STD_FD_CNT){
+        struct PCB*pcb=RunningThread();
+        int fd_g=LocalFdToGlobalFd(fd_l);
+        pcb->fd[fd_l]=-1;//关闭局部描述符
+        if(fd_g==-1)return 0;//关闭失败
+        //
+        struct FILE*file=&(GlobalFileTable[fd_g]);
+        if(file->inode){
+            InodeClose(file->inode);
+            file->inode=0;//回收全局描述符
+            return 1;//关闭成功
+        }
     }
     return 0;
 }
 int32_t syscall_read(int32_t fd_l,void*buf,uint32_t bytes){
-    if(fd_l==STDIN_FD){
+    if(IsPipe(fd_l)){
+        return pipe_read(fd_l,buf,bytes);
+    }
+    else if(fd_l==STDIN_FD){
         KeyBoardRead(buf,bytes);
+        return bytes;
     }else if(fd_l>=STD_FD_CNT){
         int fd=LocalFdToGlobalFd(fd_l);
         if(fd==-1)return 0;
@@ -398,6 +494,25 @@ int syscall_ps(void*buf){
     return cnt;
 }
 //
+bool syscall_fd_redirect(int32_t old,int32_t new){
+    struct PCB*pcb=RunningThread();
+    if(old==new)
+    {
+        if(new<STD_FD_CNT)pcb->fd[old]=new;
+        return 1;
+    }
+    if(old<0||old>=MAX_FILE_CNT_OPEN_PROCESS||new<0||new>=MAX_FILE_CNT_OPEN_PROCESS)return 0;
+    //关闭原来的文件
+    syscall_close(old);
+    //
+    if(new<STD_FD_CNT)pcb->fd[old]=new;
+    else{
+        int32_t fd_g=pcb->fd[new];
+        pcb->fd[old]=fd_g;
+    }
+    return 1;
+}
+//
 void syscall_init()
 {
     put_str("syscall table init start!\n");
@@ -433,6 +548,8 @@ void syscall_init()
     MakeSyscallTable(SYSCALL_EXEC,(uint32_t)(void*)syscall_exec,3);
     MakeSyscallTable(SYSCALL_WAIT,(uint32_t)(void*)syscall_wait,1);
     MakeSyscallTable(SYSCALL_EXIT,(uint32_t)(void*)syscall_exit,1);
+    MakeSyscallTable(SYSCALL_PIPE,(uint32_t)(void*)syscall_pipe,1);
+    MakeSyscallTable(SYSCALL_FDREDIRECT,(uint32_t)(void*)syscall_fd_redirect,1);
     ////////////////////////////////////////////////////
     put_str("syscall table init done!\n");
 }

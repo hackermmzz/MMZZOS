@@ -7,7 +7,7 @@
 #define KBD_PORT 0x60
 #define KeyBoardQueueMaxCnt 56
 ///////////////////////////////
-extern struct ioQueue KeyboardQueue;
+extern struct ioQueue KeyboardIOQueue;
 ///////////////////////////////
 enum KEYBOARDCODE{
     CODE_ESC_DOWN,
@@ -192,8 +192,7 @@ void KeyBoardInit();
 void keyboard_interrupt(uint8_t code);
 uint8_t KeyBoardConvertTo(uint16_t code);
 uint16_t KeyBoardFunction(uint16_t code0,uint16_t code1);//根据code0和code1返回对应的功能按键
-uint16_t KeyBoardGet();//获取一个输入
-void KeyBoardRead(void*buf,uint32_t cnt);//从键盘读取cnt个字符
+void KeyBoardRead(void*buf,uint32_t cnt);//从键盘读取cnt个字符(已经被转化了)
 bool IsFunctionKey(uint16_t key);//判断key是否是功能按键
 ///////////////////////////////
 #endif

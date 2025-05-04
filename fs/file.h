@@ -5,9 +5,10 @@
 ////////////////////////////////////
 #define MAX_FILE_CNT_SYSTEM_OPEN 64//系统可打开的最多文件数量
 #define MAX_PATH_LEN 256//路径最长长度
+#define PIPE_FLAG 0xffff //用于标志文件类型为管道
 ////////////////////////////////////
 struct FILE{
-    uint32_t fd_pos;
+    uint32_t fd_pos; 
     uint32_t flag;
     struct Inode*inode;
 };
@@ -45,5 +46,8 @@ int32_t LocalFdToGlobalFd(int32_t fd_l);
 int32_t file_read(int32_t fd,void*buf,uint32_t cnt);
 int32_t DirGetParentIndex(struct partition*part,struct Dir*dir,void*buf);
 void DirGetIndexName(struct partition*part,int32_t parent,int32_t index,uint32_t*addr_buf,char*name,int32_t*fa);
+int32_t GetFreeGlobalFd();
+int32_t ProcessInstallFd(int16_t global_fd);
+bool IsPipe(int32_t fd);
 ////////////////////////////////////
 #endif

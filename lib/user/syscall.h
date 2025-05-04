@@ -30,7 +30,9 @@ enum SYSCALL_CODE{
     SYSCALL_PS,//获取系统目前所有的进程信息
     SYSCALL_EXEC,
     SYSCALL_WAIT,
-    SYSCALL_EXIT
+    SYSCALL_EXIT,
+    SYSCALL_PIPE,
+    SYSCALL_FDREDIRECT,
 };//系统调用号
 ////////////////////////////////////////
 void syscall_init();
@@ -65,5 +67,7 @@ int ps(void*buf);
 int exec(const char*path,int32_t argc,char**argv);
 pid_t wait(int32_t*status);
 void exit(int code);
+bool pipe(int fd[2]);
+bool fd_redirect(int32_t old,int32_t new);
 ////////////////////////////////////////
 #endif

@@ -62,7 +62,10 @@ bool UpdateInode(struct PCB*child){
     for(int i=STD_FD_CNT;i<MAX_FILE_CNT_OPEN_PROCESS;++i){
         int fd=child->fd[i];
         if(fd!=-1){
-            GlobalFileTable[fd].inode->open_cnt++;
+            struct FILE*file=&GlobalFileTable[fd];
+            //判断是否是管道
+            if(file->flag==PIPE_FLAG)++(file->fd_pos);
+            else ++(file->inode->open_cnt);
         }
     }
     return 1;

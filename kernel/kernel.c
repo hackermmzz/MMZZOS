@@ -14,24 +14,45 @@ int main(){
     FileSystem_init();
     //把文件写入磁盘
     /*
+    int fd=open("/test.txt",O_CREATE);
+    char buf[]="WangLiHong is a clever boy and he will eran more than 50w money per year!\nCan you find WangLiHong?\nhe is handsome\nWangLiHong will make it!\nI will play YuanShen tomorrow!\n";
+    write(fd,buf,sizeof(buf));
+    close(fd);
+
     {
-        int fd=open("/config.txt",O_CREATE);
-        char message[]="WangLiHong will earn more than 50w money per year!And he will make more girl friends in future!";
-        write(fd,message,sizeof(message));
+        int fd=open("/test.txt",O_CREATE);
+        char buf[]="WangLiHong is a clever boy and he will eran more than 50w money per year!";
+        write(fd,buf,sizeof(buf));
         close(fd);
     }
-    struct disk*dk=&ide_channel[0].devices[0];
-    uint32_t sec=30;
-    void*buf=malloc(sec*512);
-    ide_read(dk,buf,300,sec);
-    int fd=open("/cat",O_CREATE);
-    int cnt=write(fd,buf,sec*512);
-    printf("You have write %d!\n",cnt);
-    close(fd);
-    fd=open("/cat",O_RDONLY);
-    void*buff=malloc(sec*512);
-    ASSERT(read(fd,buff,cnt)==cnt);
-    printf("memcpy res is:%d\n",memcmp(buf,buff,sec*512));
+    {
+        struct disk*dk=&ide_channel[0].devices[0];
+        uint32_t sec=30;
+        void*buf=malloc(sec*512);
+        ide_read(dk,buf,500,sec);
+        int fd=open("/cat",O_CREATE);
+        int cnt=write(fd,buf,sec*512);
+        printf("You have write %d!\n",cnt);
+        close(fd);
+        fd=open("/cat",O_RDONLY);
+        void*buff=malloc(sec*512);
+        ASSERT(read(fd,buff,cnt)==cnt);
+        printf("memcpy res is:%d\n",memcmp(buf,buff,sec*512));
+    }
+    {
+        struct disk*dk=&ide_channel[0].devices[0];
+        uint32_t sec=30;
+        void*buf=malloc(sec*512);
+        ide_read(dk,buf,300,sec);
+        int fd=open("/grep",O_CREATE);
+        int cnt=write(fd,buf,sec*512);
+        printf("You have write %d!\n",cnt);
+        close(fd);
+        fd=open("/grep",O_RDONLY);
+        void*buff=malloc(sec*512);
+        ASSERT(read(fd,buff,cnt)==cnt);
+        printf("memcpy res is:%d\n",memcmp(buf,buff,sec*512));
+    }
     while(1);
     */
     //

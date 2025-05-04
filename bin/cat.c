@@ -13,7 +13,6 @@ int main(int argc,char**argv){
         int32_t size=seek(fd,0,SEEK_END);
         seek(fd,0,SEEK_SET);
         char*buf=malloc(size);
-        printf("fileSize is: %d\n",size);
         if(buf==0){
             printf("can't malloc buffer!\n");
             return 0;

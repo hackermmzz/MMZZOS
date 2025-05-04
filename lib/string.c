@@ -42,7 +42,15 @@ int strcmp(const char *s0, const char *s1)
     if(*s0)return 1;
     return -1;
 }
-//把字符串反转,返回值是字符串的长度
+const char *strchr(const char *str, int ch)
+{
+    while(*str){
+        if(*str==ch)return str;
+        ++str;
+    }
+    return 0;
+}
+// 把字符串反转,返回值是字符串的长度
 int32_t reverse(char *str)
 {
     int32_t len=strlen(str);

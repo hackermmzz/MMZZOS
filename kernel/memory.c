@@ -326,10 +326,13 @@ void* malloc_page(enum PoolOwner flag, uint32_t pageCnt)
     while(pageCnt--){
         void*phyAddr=palloc(pool);
         if(!phyAddr){
-            //如果物理内存不够了,需要回收之前分配出去的内存
+            //回收之前分配出去的内存
+            int cnt=(vaddr-(uint32_t)ret)/PAGE_SIZE;
+            free_page(flag,(uint32_t)ret,cnt);
             return 0;
         }
         AddToPageTable(phyAddr,(void*)vaddr);
+        memset((void*)vaddr,0,PAGE_SIZE);//目前先清空为0(但是申请大内存会出现性能问题)
         vaddr+=PAGE_SIZE;
     }
     return ret;

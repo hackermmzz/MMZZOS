@@ -30,7 +30,8 @@ void ReleaseProcessResource(struct PCB*pcb){
     extern int32_t syscall_close(int32_t fd_l);
     for(int i=STD_FD_CNT;i<MAX_FILE_CNT_OPEN_PROCESS;++i){
         if(pcb->fd[i]!=-1){
-            syscall_close(pcb->fd[i]);
+            //如果是管道
+            syscall_close(i);
         }
     }
 }

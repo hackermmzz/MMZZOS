@@ -6,7 +6,7 @@ bool KeyBoardCapsLock=0;//判断大写是否锁定
 bool KeyBoardCtrl=0;//判断ctrl是否按下
 uint16_t KeyBoardQueue[KeyBoardQueueMaxCnt]={-1};//键盘键入值队列
 int KeyBoardQueueIdx=0;
-struct ioQueue KeyboardQueue;
+struct ioQueue KeyboardIOQueue;
 //键盘输入码到MMZZ操作系统的字符码转换表
 const enum KEYBOARDCODE ScanCodeConvertTable[][2]={
     {-1,-1},//0x0
@@ -270,7 +270,13 @@ const enum KEYBOARDCODE ScanCodeConvertTable[][2]={
 void KeyBoardInit(){
     put_str("keyboard init start!\n");
     memset(KeyBoardQueue,-1,sizeof(KeyBoardQueue));//
-    ioQueueInit(&KeyboardQueue);//
+    //初始化io队列
+    ioQueueInit(&KeyboardIOQueue);
+    void*buf=mallocKernelPage(1);
+    KeyboardIOQueue.buff=buf;
+    KeyboardIOQueue.len=PAGE_SIZE;
+    ASSERT(buf);
+    //
     put_str("keyboard init done!\n");
 }
 void keyboard_interrupt(uint8_t code)
@@ -316,9 +322,10 @@ void keyboard_interrupt(uint8_t code)
     //存入io队列
     {
         uint16_t code=KeyBoardFunction(KeyBoardCtrl?CODE_CTRL_DOWN:-1,decode);
-        if(!ioQueueFull(&KeyboardQueue)&&code!=(uint16_t)-1){
-            //依次放入第8位和高8位
-            ioQueuePut(&KeyboardQueue,(uint32_t)code);
+        if(!ioQueueFull(&KeyboardIOQueue)&&code!=(uint16_t)-1){
+            //依次放入高8位和低8位
+            ioQueuePut(&KeyboardIOQueue,(byte)(code>>8));
+            ioQueuePut(&KeyboardIOQueue,(byte)code);
         }
     }
     //
@@ -402,18 +409,20 @@ uint16_t KeyBoardFunction(uint16_t code0, uint16_t code1)
     //否则直接返回code1
     return code1;
 }
-
+//获取一个输入(不做任何转化)
 uint16_t KeyBoardGet()
 {
-    uint32_t key=ioQueueGet(&KeyboardQueue);
-    return (uint16_t)key;
+    uint16_t key=ioQueueGet(&KeyboardIOQueue);//高8位
+    key<<=8;
+    key|=ioQueueGet(&KeyboardIOQueue);//低8位
+    return key;
 }
 
 void KeyBoardRead(void *buf, uint32_t cnt)
 {
     char*str=(char*)buf;
     while(cnt){
-        uint32_t key=ioQueueGet(&KeyboardQueue);
+        uint16_t key=KeyBoardGet();
         uint8_t ch=KeyBoardConvertTo(key);
         //如果读取成功
         if(ch!=(uint8_t)(-1)){

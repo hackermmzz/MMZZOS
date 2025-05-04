@@ -59,6 +59,10 @@
         "text_encoding": "c",
         "typeinfo": "c",
         "exec.h": "c",
-        "wait_exit.h": "c"
+        "wait_exit.h": "c",
+        "algorithm": "c",
+        "random": "c",
+        "limits": "c",
+        "numeric": "c"
     }
 }
