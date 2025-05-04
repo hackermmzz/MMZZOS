@@ -106,5 +106,6 @@ int getline(void *buf, int32_t size)
 
 int putchar(int ch){
     char chh=ch;
-    write(STDOUT_FD,&chh,1);
+    int cnt=write(STDOUT_FD,&chh,1);
+    return cnt;
 }

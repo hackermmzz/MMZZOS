@@ -31,10 +31,10 @@ void partition_format(struct partition*part){
     superblock.inode_cnt=MAXFILE_PER_PART;
     superblock.lba=part->start_lba;
     
-    superblock.block_bitmap_lba=superblock.lba+2;//
-    superblock.block_bitmap_sector_cnt=block_bitmap_sector;
+    superblock.sector_bitmap_lba=superblock.lba+2;//
+    superblock.sector_bitmap_sector_cnt=block_bitmap_sector;
 
-    superblock.inode_bitmap_lba=superblock.block_bitmap_lba+superblock.block_bitmap_sector_cnt;
+    superblock.inode_bitmap_lba=superblock.sector_bitmap_lba+superblock.sector_bitmap_sector_cnt;
     superblock.inode_bitmap_sector_cnt=inode_bitmap_sector;//
 
     superblock.inode_table_lba=superblock.inode_bitmap_lba+superblock.inode_bitmap_sector_cnt;//
@@ -49,13 +49,17 @@ void partition_format(struct partition*part){
     printk("The SuperBlock has been written into the partition!\n");
     /////写入其他的数据
     uint32_t buffer_size=max(
-        superblock.block_bitmap_sector_cnt,
+        superblock.sector_bitmap_sector_cnt,
         max(
             superblock.inode_bitmap_sector_cnt,
             superblock.inode_table_sector_cnt))*SECTOR_SIZE;
     uint8_t*buf=(uint8_t*)syscall_malloc(buffer_size);
     //初始化块位图
-    buf[0]|=0x01;//第一块留给根目录
+    //第一块留给根目录
+    for(int i=0;i<BLOCK_OCCUPY_SECTOR;++i){
+        int idx0=i/8,idx1=i%8;
+        buf[idx0]|=(1<<idx1);
+    }
     uint32_t invalidLastByte=block_bitmap_len/8;
     uint32_t lastbit=block_bitmap_len%8;
     uint32_t invalidSize=SECTOR_SIZE-(invalidLastByte%SECTOR_SIZE);
@@ -65,7 +69,7 @@ void partition_format(struct partition*part){
         buf[invalidLastByte]&=~(1<<bitIdx);
         ++bitIdx;
     }
-    ide_write(hd,buf,superblock.block_bitmap_lba,superblock.block_bitmap_sector_cnt);
+    ide_write(hd,buf,superblock.sector_bitmap_lba,superblock.sector_bitmap_sector_cnt);
     printk("The block bitmap has been written into the partition!\n");
     //初始化inode表位图
     memset(buf,0,buffer_size);
@@ -114,10 +118,10 @@ bool mount_partition(struct ListNode*node,int arg){
         ASSERT(CurPartition->sb);
         memcpy(CurPartition->sb,sb,sizeof(struct SuperBlock));
         //读取块位图
-        CurPartition->block_bitmap.bits=syscall_malloc(sb->block_bitmap_sector_cnt*SECTOR_SIZE);
-        ASSERT(CurPartition->block_bitmap.bits);
-        CurPartition->block_bitmap.len=sb->block_bitmap_sector_cnt*SECTOR_SIZE;
-        ide_read(CurPartition->my_disk,CurPartition->block_bitmap.bits,sb->block_bitmap_lba,sb->block_bitmap_sector_cnt);
+        CurPartition->sector_bitmap.bits=syscall_malloc(sb->sector_bitmap_sector_cnt*SECTOR_SIZE);
+        ASSERT(CurPartition->sector_bitmap.bits);
+        CurPartition->sector_bitmap.len=sb->sector_bitmap_sector_cnt*SECTOR_SIZE;
+        ide_read(CurPartition->my_disk,CurPartition->sector_bitmap.bits,sb->sector_bitmap_lba,sb->sector_bitmap_sector_cnt);
         //读取inode位图
         CurPartition->inode_bitmap.bits=syscall_malloc(sb->inode_bitmap_sector_cnt*SECTOR_SIZE);
         ASSERT(CurPartition->inode_bitmap.bits);
@@ -248,13 +252,14 @@ struct Dir* SearchFile(const char*path,char*buf,struct DirEntry*entry,int32_t*pa
             }
             //如果找到的是文件
             else if(entry->filetype==FT_FILE){
-                if(!dirOpen)DirClose(last);
+                DirClose(last);
                 if(*path){
                     //如果没到路径末尾就解析出了文件，直接返回
                     entry->filetype=FT_UNKOWN;
                     if(parentIdx)*parentIdx=-1;//解析错误，父目录为-1
                     return last;
                 }
+                if(dirOpen)last=DirOpen(CurPartition,entry->index);
                 return last;//否则解析成功,返回
             }
             else PANIC_MACRO("HERE!\n");
@@ -278,23 +283,23 @@ bool DeleteDirectoryDirEntry(struct partition*part,struct Dir*dir, const char *e
     memcpy((void*)addr_buf,(void*)(dir->inode->i_sectors),48);
     int32_t end=12;
     if(dir->inode->i_sectors[12]){
-        end=140;
-        ide_read(part->my_disk,&addr_buf[12],dir->inode->i_sectors[12],1);
+        end=(12+BLOCK_SIZE/4);
+        ide_read(part->my_disk,&addr_buf[12],dir->inode->i_sectors[12],BLOCK_OCCUPY_SECTOR);
     } 
     //
     void*buf=dir->dir_buf;
     ASSERT(buf);
-    int32_t cnt=SECTOR_SIZE/sizeof(struct DirEntry);
+    int32_t cnt=BLOCK_SIZE/sizeof(struct DirEntry);
     for(int idx=0;idx<end;++idx){
         if(addr_buf[idx]){
             //读取信息
-            ide_read(part->my_disk,buf,addr_buf[idx],1);
+            ide_read(part->my_disk,buf,addr_buf[idx],BLOCK_OCCUPY_SECTOR);
             struct DirEntry*entrys=(struct DirEntry*)buf;
             for(int i=0;i<cnt;++i){
                 if(entrys[i].filetype!=FT_UNKOWN){
                     if(!strcmp(entrys[i].filename,entry)){
                         memset(&entrys[i],0,sizeof(struct DirEntry));
-                        ide_write(part->my_disk,buf,addr_buf[idx],1);
+                        ide_write(part->my_disk,buf,addr_buf[idx],BLOCK_OCCUPY_SECTOR);
                         //同步文件夹大小
                         dir->inode->size-=1;
                         InodeWrite(part,dir->inode);

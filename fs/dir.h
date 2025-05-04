@@ -8,7 +8,7 @@
 struct Dir{
     struct Inode*inode;
     uint32_t dir_pos;//
-    uint8_t dir_buf[512];//目录的数据缓存
+    uint8_t dir_buf[BLOCK_SIZE];//目录的数据缓存
 };
 struct DirEntry{
     char filename[FILENAME_MAX_LEN];//文件名

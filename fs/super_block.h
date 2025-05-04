@@ -9,8 +9,8 @@ struct SuperBlock{
     uint32_t inode_cnt;//文件最大总数
     uint32_t lba;//起始扇区
     //
-    uint32_t block_bitmap_lba;//块位图的起始扇区
-    uint32_t block_bitmap_sector_cnt;//块位图占用的扇区数量
+    uint32_t sector_bitmap_lba;//块位图的起始扇区
+    uint32_t sector_bitmap_sector_cnt;//块位图占用的扇区数量
     //
     uint32_t inode_bitmap_lba;//inode位图的起始扇区
     uint32_t inode_bitmap_sector_cnt;//inode位图占用的扇区数量

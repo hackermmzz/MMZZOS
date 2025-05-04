@@ -29,10 +29,7 @@ void ReleaseProcessResource(struct PCB*pcb){
     ///////////////////////关闭文件
     extern int32_t syscall_close(int32_t fd_l);
     for(int i=STD_FD_CNT;i<MAX_FILE_CNT_OPEN_PROCESS;++i){
-        if(pcb->fd[i]!=-1){
-            //如果是管道
-            syscall_close(i);
-        }
+        syscall_close(i);
     }
 }
 //收养所有父进程为pid的进程

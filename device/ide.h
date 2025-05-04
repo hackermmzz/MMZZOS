@@ -12,7 +12,7 @@ typedef struct partition
     struct ListNode tag;   //所在队列中的标记
     char name[8];                //分区名字
     struct SuperBlock* sb;	  //本分区 超级块
-    struct BitMap block_bitmap;  //块位图
+    struct BitMap sector_bitmap;  //块位图
     struct BitMap inode_bitmap;  //i结点位图
     struct List open_inodes;     //本分区打开
 }partition;

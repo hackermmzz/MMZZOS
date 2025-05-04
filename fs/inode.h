@@ -13,9 +13,10 @@ struct Inode{
     struct ListNode tag;
 };
 
+
 struct Inode* InodeOpen(struct partition*part,uint32_t index);
 void InodeWrite(struct partition*part,struct Inode*inode);//将inode写入磁盘
-void InodeClose(struct Inode*inode);
+bool InodeClose(struct Inode*inode);//返回值表示inode是否真的被关闭了(openCnt为0就会被真正关闭)
 void InodeInit(struct Inode*inode,uint32_t index);
 struct Inode*FindOpenInode(struct partition*part,int32_t index);
 bool InodeRecycle(struct partition*part,struct Inode*inode,uint32_t*addr_buf);

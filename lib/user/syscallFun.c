@@ -113,22 +113,29 @@ bool pipe_close(int32_t fd_l){
     return 1;
 }
 uint32_t syscall_write(uint32_t fd,const byte*buf,uint32_t size){
+    struct PCB*pcb=RunningThread();
     //如果是管道(标准输入输出流都可能被重定向为管道)
     if(IsPipe(fd)){
         return pipe_write(fd,buf,size);
     }
-    //如果fd是标准流
-    else if(fd==STDOUT_FD){
+    //如果fd是标准流(注意输出流可能被重定向到一个文件)
+    else if(fd==STDOUT_FD&&pcb->fd[fd]==-1){
          for(uint32_t i=0;i<size;++i){
             put_char(*buf);
             ++buf;
          }
          return size;
     }
-    else if(fd>=STD_FD_CNT){
+    //否则就是普通文件的写入
+    else if(pcb->fd[fd]!=-1){
         fd=LocalFdToGlobalFd(fd);
         if(fd==-1)return 0;
-        return file_write(fd,buf,size);
+        //判断是否有写权限
+        struct FILE*file=&GlobalFileTable[fd];
+        //具有写入权限才可以写
+        if(file->flag&O_WRONLY){
+            return file_write(fd,buf,size);
+        }
     }
     return 0;
 }
@@ -171,35 +178,44 @@ int32_t syscall_open(const char*file,uint32_t flag){
 }
 
 int32_t syscall_close(int32_t fd_l){
+    if(fd_l<0||fd_l>=MAX_FILE_CNT_OPEN_PROCESS)return 0;
+    struct PCB*pcb=RunningThread();
     //如果是管道
     if(IsPipe(fd_l)){
         return pipe_close(fd_l);
-    }else if(fd_l>=STD_FD_CNT){
-        struct PCB*pcb=RunningThread();
+    }else if(pcb->fd[fd_l]!=-1){
         int fd_g=LocalFdToGlobalFd(fd_l);
         pcb->fd[fd_l]=-1;//关闭局部描述符
         if(fd_g==-1)return 0;//关闭失败
         //
         struct FILE*file=&(GlobalFileTable[fd_g]);
         if(file->inode){
-            InodeClose(file->inode);
-            file->inode=0;//回收全局描述符
+            if(InodeClose(file->inode))
+            {
+                file->inode=0;//回收全局描述符
+            }
             return 1;//关闭成功
         }
     }
     return 0;
 }
 int32_t syscall_read(int32_t fd_l,void*buf,uint32_t bytes){
+    struct PCB*pcb=RunningThread();
     if(IsPipe(fd_l)){
         return pipe_read(fd_l,buf,bytes);
     }
-    else if(fd_l==STDIN_FD){
+    //标准输入流
+    else if(fd_l==STDIN_FD&&pcb->fd[fd_l]==-1){
         KeyBoardRead(buf,bytes);
         return bytes;
-    }else if(fd_l>=STD_FD_CNT){
+    }else if(pcb->fd[fd_l]!=-1){
         int fd=LocalFdToGlobalFd(fd_l);
         if(fd==-1)return 0;
-        return file_read(fd,buf,bytes);
+        struct FILE*file=&GlobalFileTable[fd];
+        //具有读取权限才可以读
+        if(file->flag&O_RDONLY){
+            return file_read(fd,buf,bytes);
+        }
     }
     return 0;
 }
@@ -240,7 +256,12 @@ int32_t syscall_unlink(const char*file){
     }
     
     //回收掉inode
-    uint32_t addr[140];
+    int addrCnt=(12+BLOCK_SIZE/4);
+    uint32_t*addr=syscall_malloc(addrCnt*sizeof(uint32_t));
+    if(addr==0){
+        DirClose(dir);
+        return 0;
+    }
     ASSERT(InodeRecycle(CurPartition,dir->inode,addr));
     //删除在父目录的记录
     struct Dir*fa=DirOpen(CurPartition,parent);
@@ -248,6 +269,7 @@ int32_t syscall_unlink(const char*file){
     ASSERT(DeleteDirectoryDirEntry(CurPartition,fa,name,addr));//删不掉属于系统级别的硬伤，直接卡死
     DirClose(fa);
     DirClose(dir);
+    syscall_free(addr);
     return 1;
 }
 int32_t syscall_mkdir(const char*path){
@@ -278,7 +300,10 @@ int32_t syscall_mkdir(const char*path){
     entry.index=dir->inode->index;
     memcpy(entry.filename,".",2);
     entry.filetype=FT_DIR;
-    if(!CreateDirEntry(CurPartition,dir,&entry))goto MkDirRollBack;
+    if(!CreateDirEntry(CurPartition,dir,&entry))
+    {
+        goto MkDirRollBack;
+    }
     //..
     entry.index=parent;//..指向父亲节点
     memcpy(entry.filename,"..",3);
@@ -327,27 +352,30 @@ int32_t syscall_rewinddir(struct Dir*dir){
 //
 struct DirEntry* syscall_readdir(struct Dir*dir){
     if(!dir||dir->dir_pos>=dir->inode->size)return 0;
-    uint32_t addr[140];
+    int addrCnt=(12+BLOCK_SIZE/4);
+    uint32_t*addr=syscall_malloc(addrCnt*sizeof(uint32_t));
+    if(addr==0)return 0;
     memcpy(addr,dir->inode->i_sectors,48);
     if(dir->inode->i_sectors[12])
-    ide_read(CurPartition->my_disk,(&addr[0])+12,dir->inode->i_sectors[12],1);
+    ide_read(CurPartition->my_disk,(&addr[0])+12,dir->inode->i_sectors[12],BLOCK_OCCUPY_SECTOR);
     int32_t tarpos=dir->dir_pos;
     int32_t idx0=0;
     int32_t curpos=0;
-    int32_t cnt=SECTOR_SIZE/sizeof(struct DirEntry);
+    int32_t cnt=BLOCK_SIZE/sizeof(struct DirEntry);
     while(curpos<=tarpos){
         if(addr[idx0]==0){
             ++idx0;
             continue;
         }
         //
-        ide_read(CurPartition->my_disk,dir->dir_buf,addr[idx0],1);
+        ide_read(CurPartition->my_disk,dir->dir_buf,addr[idx0],BLOCK_OCCUPY_SECTOR);
         struct DirEntry*entrys=(struct DirEntry*)dir->dir_buf;
         for(int i=0;i<cnt;++i){
             struct DirEntry*entry=&entrys[i];
             if(entry->filetype!=FT_UNKOWN){
                 if(curpos==tarpos){
                     ++(dir->dir_pos);
+                    syscall_free(addr);
                     return entry;
                 }
                 ++curpos;
@@ -355,6 +383,7 @@ struct DirEntry* syscall_readdir(struct Dir*dir){
         }
         ++idx0;
     }
+    syscall_free(addr);
     return 0;
 }
 //
@@ -382,16 +411,19 @@ int32_t syscall_rmdir(const char*path){
     }
     //删除在父目录的记录
     struct Dir*fa=DirOpen(CurPartition,parent);
-    uint32_t addr[140];
+    int addrCnt=(12+BLOCK_SIZE/4);
+    uint32_t*addr=syscall_malloc(addrCnt*sizeof(uint32_t));
     ASSERT(DeleteDirectoryDirEntry(CurPartition,fa,name,addr));
     //回收掉inode
     ASSERT(InodeRecycle(CurPartition,dir->inode,addr));
     DirClose(fa);
     DirClose(dir);
+    syscall_free(addr);
     return 1;
 }
 //
 int32_t syscall_getcwd(char*buf,uint32_t buff_size){
+    *buf=0;
     struct PCB*pcb=RunningThread();
     struct Dir* dir=pcb->workDir;
     ASSERT(dir);
@@ -405,7 +437,9 @@ int32_t syscall_getcwd(char*buf,uint32_t buff_size){
     //
     char*tmp=buf+buff_size-1;
     int cur=dir->inode->index;
-    uint32_t addr[140];
+    int addrCnt=(12+BLOCK_SIZE/4);
+    uint32_t*addr=syscall_malloc(addrCnt*sizeof(uint32_t));
+    if(addr==0)return 0;
     char name[FILENAME_MAX_LEN+1];
     //只要当前目录不是根目录就一直往上找
     while(cur){
@@ -424,6 +458,7 @@ int32_t syscall_getcwd(char*buf,uint32_t buff_size){
     ++tmp;
     while(tmp!=end)*tmpp=*tmp,++tmpp,++tmp,++len;
     *tmpp=0;
+    syscall_free(addr);
     return len;
 }
 //
@@ -496,20 +531,17 @@ int syscall_ps(void*buf){
 //
 bool syscall_fd_redirect(int32_t old,int32_t new){
     struct PCB*pcb=RunningThread();
-    if(old==new)
+    if(old<=STD_FD_CNT&&new==-1)
     {
-        if(new<STD_FD_CNT)pcb->fd[old]=new;
+        pcb->fd[old]=-1;
         return 1;
     }
     if(old<0||old>=MAX_FILE_CNT_OPEN_PROCESS||new<0||new>=MAX_FILE_CNT_OPEN_PROCESS)return 0;
     //关闭原来的文件
     syscall_close(old);
     //
-    if(new<STD_FD_CNT)pcb->fd[old]=new;
-    else{
-        int32_t fd_g=pcb->fd[new];
-        pcb->fd[old]=fd_g;
-    }
+    int32_t fd_g=pcb->fd[new];
+    pcb->fd[old]=fd_g;
     return 1;
 }
 //
@@ -524,10 +556,10 @@ void syscall_init()
     extern int32_t syscall_exec(const char*path,int32_t argc,char*argv[]);
     ///////////////////////////////////////////////////
     MakeSyscallTable(SYSCALL_GETPID,(uint32_t)(void*)syscall_GetProcessPid,0);
-    MakeSyscallTable(SYSCALL_WRITE,(uint32_t)(void*)syscall_write,3);
     MakeSyscallTable(SYSCALL_MALLOC,(uint32_t)(void*)syscall_malloc,1);
     MakeSyscallTable(SYSCALL_FREE,(uint32_t)(void*)syscall_free,1);
     MakeSyscallTable(SYSCALL_SLEEP,(uint32_t)(void*)syscall_sleep,1);
+    MakeSyscallTable(SYSCALL_WRITE,(uint32_t)(void*)syscall_write,3);
     MakeSyscallTable(SYSCALL_OPEN,(uint32_t)(void*)syscall_open,2);
     MakeSyscallTable(SYSCALL_CLOSE,(uint32_t)(void*)syscall_close,1);
     MakeSyscallTable(SYSCALL_READ,(uint32_t)(void*)syscall_read,3);

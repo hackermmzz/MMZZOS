@@ -109,7 +109,13 @@ void general_interrupt_process(uint8_t code)
     struct PCB*pcb=RunningThread();
     struct InterruptStack*stack=(struct InterruptStack*)(((uint32_t)pcb+PAGE_SIZE)-sizeof(struct InterruptStack));
     printk("Error Code:%d\nError Name:%s\nEip:%x\nEsp:%x\n",code,interrupt_name[code],stack->eip,stack->esp);
-    PANIC_MACRO("HERE!\n");
+    //如果是内核进程或者init进程出问题了,直接卡死，这是我的过错
+    if(pcb->pageaddr==0||pcb->pid==1){
+        PANIC_MACRO("HERE!\n");
+    }
+    //否则直接杀死进程
+    extern void syscall_exit(int32_t);
+    syscall_exit(1);
 }
 
 void interrupt_enable()

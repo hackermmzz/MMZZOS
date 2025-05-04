@@ -12,5 +12,6 @@ void buildin_rm(int argc,char**argv);
 void buildin_pwd(int argc,char**argv);
 void buildin_ps(int argc,char**argv);
 void buildin_clear(int argc,char**argv);
+void buildin_echo(int argc,char**argv);
 //////////////////////////////////////
 #endif

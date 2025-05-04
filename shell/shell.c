@@ -115,9 +115,17 @@ bool ProcessBuildin_CMD(int argc,char**argv){
         buildin_ps(argc-1,argv+1);
         return 1;
     }
+    else if(!strcmp(cmdName,"echo")){
+        buildin_echo(argc-1,argv+1);
+        return 1;
+    }
     return 0;
 }
 void CMD_Exec(int argc,char*argv[]){
+    if(ProcessBuildin_CMD(argc,argv)){
+        exit(0);
+        return;
+    }
     char path[MAX_PATH_LEN+1];
     GetAbsolutePath(argv[0],path);
     //先判断文件是否存在
@@ -130,7 +138,7 @@ void CMD_Exec(int argc,char*argv[]){
         exec(path,argc,argv);
     }
 }
-bool ProcessExternal_CMD(int argc,char*argv[]){
+bool ProcessRegular_CMD(int argc,char*argv[]){
     int32_t pid=fork();
     if(pid){
         int status;
@@ -142,21 +150,6 @@ bool ProcessExternal_CMD(int argc,char*argv[]){
     return 1;
 }
 
-bool str0Occurstr1(const char*str0,const char*str1){
-    int len0=strlen(str0);
-    int len1=strlen(str1);
-    for(int i=0;i+len1-1<len0;++i){
-        bool flag=1;
-        for(int j=0;j<len1;++j){
-            if(str0[i+j]!=str1[j]){
-                flag=0;
-                break;
-            }
-        }
-        if(flag)return 1;
-    }
-    return 0;
-}
 void ProcessPipeCMD(){
     //计算需要创建的进程个数(进程只能是外部命令)
     int cnt=0;
@@ -204,8 +197,8 @@ void ProcessPipeCMD(){
         close(fd[1]);
         CMD_Exec(argc1,argv1);
     }
-    fd_redirect(STDIN_FD,STDIN_FD);
-    fd_redirect(STDOUT_FD,STDOUT_FD);
+    fd_redirect(STDIN_FD,-1);
+    fd_redirect(STDOUT_FD,-1);
     for(int i=0,status;i<2;++i){
         pid_t pid=wait(&status);
         if(pid==-1){
@@ -217,7 +210,103 @@ void ProcessPipeCMD(){
     close(fd[0]);
     close(fd[1]);
 }
+void ProcessOutputReFd(){
+    char*flag=strchr(cmd_buf,'>');
+    *flag=0;
+    const char*file=strip(flag+1);
+    char filePath[MAX_PATH_LEN+1];
+    GetAbsolutePath(file,filePath);
+    //先判断文件是否存在
+    struct stat state;
+    if(stat(filePath,&state)==0){
+        printf("stat file %s failed!\n",filePath);
+        return;
+    }
+    int fd=-1;
+    //如果不存在,创建一个文件
+    if(state.filetype==FT_UNKOWN){
+        fd=open(filePath,O_CREATE|O_WRONLY);
+    }
+    else 
+    {
+        fd=open(filePath,O_WRONLY);
+        seek(fd,SEEK_END,0);//把指针知到最后一个
+    }
+    //
+    if(fd==-1){
+        printf("can't open file %s!\n",filePath);
+        return;
+    }
+    //把文件指针移到最后一个
+    if(-1==seek(fd,0,SEEK_END)){
+        printf("can't seek file pointer!\n",filePath);
+        return;
+    }
+    //创建进程
+    int argc=CmdParse(cmd_buf,' ');
+    if(argc==-1){
+        printf("parse command fail!\n");
+        close(fd);
+        return;
+    }
+    if(!fork()){
+        fd_redirect(STDOUT_FD,fd);
+        CMD_Exec(argc,cmd_argv);
+    }
+    int status;
+    wait(&status);
+    close(fd);
+}
+void ProcessInputReFd(){
+    char*flag=strchr(cmd_buf,'<');
+    *flag=0;
+    const char*file=strip(flag+1);
+    char filePath[MAX_PATH_LEN+1];
+    GetAbsolutePath(file,filePath);
+    //先判断文件是否存在
+    struct stat state;
+    if(stat(filePath,&state)==0){
+        printf("stat file %s failed!\n",filePath);
+        return;
+    }
+    int fd=-1;
+    //如果不存在,直接返回
+    if(state.filetype==FT_UNKOWN){
+        printf("file %s don't exist!\n",file);
+        return;
+    }
+    fd=open(filePath,O_RDONLY);
+    //
+    if(fd==-1){
+        printf("can't open file %s!\n",filePath);
+        return;
+    }
+    //创建进程
+    int argc=CmdParse(cmd_buf,' ');
+    if(argc==-1){
+        printf("parse command fail!\n");
+        close(fd);
+        return;
+    }
+    if(!fork()){
+        fd_redirect(STDIN_FD,fd);
+        CMD_Exec(argc,cmd_argv);
+    }
+    int status;
+    wait(&status);
+    close(fd);
+}
 void ShellExec(){
+    //如果含有'>',当输出重定向处理
+    if(strchr(cmd_buf,'>')){
+        ProcessOutputReFd();
+        return;
+    }
+    //如果含有'<'，当输入重定向处理
+    if(strchr(cmd_buf,'<')){
+        ProcessInputReFd();
+        return;
+    }
     //如果含有'|'当管道处理
     if(strchr(cmd_buf,'|')){
         ProcessPipeCMD();
@@ -230,11 +319,14 @@ void ShellExec(){
         return;
     }
     if(argc==0)return;
-    ////处理命令
-    //如果是内部命令
-    if(ProcessBuildin_CMD(argc,cmd_argv))return;
-    //反之为外部命令
-    if(ProcessExternal_CMD(argc,cmd_argv))return;
+    //看看是不是内部命令
+    if(ProcessBuildin_CMD(argc,cmd_argv)){
+        return;
+    }
+    ////处理常规命令
+    if(ProcessRegular_CMD(argc,cmd_argv)){
+        return;
+    }
     //反之找不到命令
     printf("Can't find command named: %s\n",cmd_argv[0]);
 }

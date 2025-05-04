@@ -14,13 +14,12 @@ int main(){
     FileSystem_init();
     //把文件写入磁盘
     /*
-    int fd=open("/test.txt",O_CREATE);
+    int fd=open("/test.txt",O_CREATE|O_WRONLY);
     char buf[]="WangLiHong is a clever boy and he will eran more than 50w money per year!\nCan you find WangLiHong?\nhe is handsome\nWangLiHong will make it!\nI will play YuanShen tomorrow!\n";
     write(fd,buf,sizeof(buf));
     close(fd);
-
     {
-        int fd=open("/test.txt",O_CREATE);
+        int fd=open("/test.txt",O_CREATE|O_WRONLY);
         char buf[]="WangLiHong is a clever boy and he will eran more than 50w money per year!";
         write(fd,buf,sizeof(buf));
         close(fd);
@@ -30,7 +29,7 @@ int main(){
         uint32_t sec=30;
         void*buf=malloc(sec*512);
         ide_read(dk,buf,500,sec);
-        int fd=open("/cat",O_CREATE);
+        int fd=open("/cat",O_CREATE|O_WRONLY);
         int cnt=write(fd,buf,sec*512);
         printf("You have write %d!\n",cnt);
         close(fd);
@@ -44,7 +43,7 @@ int main(){
         uint32_t sec=30;
         void*buf=malloc(sec*512);
         ide_read(dk,buf,300,sec);
-        int fd=open("/grep",O_CREATE);
+        int fd=open("/grep",O_CREATE|O_WRONLY);
         int cnt=write(fd,buf,sec*512);
         printf("You have write %d!\n",cnt);
         close(fd);

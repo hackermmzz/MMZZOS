@@ -16,7 +16,7 @@ void GetAbsolutePath(const char *path, char *buf)
                 strcat(tmp,"/");
             }
         }
-    }
+    };
     strcat(tmp,path);//得到绝对路径
     //去掉路径中的.和..
     char* stack[MAX_PATH_LEN];
@@ -95,6 +95,8 @@ void buildin_cd(int argc,char**argv)
     //如果只是cd,那么他表示切换到根目录
     if(argc==0){
         chdir("/");
+        cmd_cwd[0]='/';
+        cmd_cwd[1]=0;
         return;
     }
     //否则切换到对应目录
@@ -145,14 +147,14 @@ void buildin_rm(int argc, char **argv)
             GetAbsolutePath(arg1,path);
             char buf[MAX_PATH_LEN+1];
             bool success=DirectoryRemove(path,buf);
-            if(!success)printf("rm %s failed!\n",arg0);
+            if(!success)printf("rm directory %s failed!\n",arg0);
         }
     }
     //删除普通文件
     else{
         GetAbsolutePath(arg0,path);
         bool success=unlink(path);
-        if(!success)printf("rm %s failed!\n",arg0);
+        if(!success)printf("rm file %s failed!\n",arg0);
     }
 }
 
@@ -205,4 +207,12 @@ void buildin_ps(int argc, char **argv)
 void buildin_clear(int argc,char**argv)
 {
     clear();
+}
+
+void buildin_echo(int argc, char **argv)
+{
+    for(int i=0;i<argc;++i){
+        printf("%s",argv[i]);
+        if(i+1!=argc)putchar(' ');
+    }
 }

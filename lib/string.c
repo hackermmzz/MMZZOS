@@ -50,6 +50,11 @@ const char *strchr(const char *str, int ch)
     }
     return 0;
 }
+const char *strip(const char *str)
+{
+    while(*str&&*str==' ')++str;
+    return str;
+}
 // 把字符串反转,返回值是字符串的长度
 int32_t reverse(char *str)
 {

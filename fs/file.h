@@ -26,9 +26,9 @@ enum FS_BITMAP_TYPE{
 };
 
 enum {
-    O_RDONLY,
-    O_WRONLY,
-    O_RDWR,
+    O_RDONLY=1,
+    O_WRONLY=2,
+    O_RDWR=3,
     O_CREATE=4,
 };
 
@@ -39,6 +39,7 @@ extern struct FILE GlobalFileTable[MAX_FILE_CNT_SYSTEM_OPEN];
 int32_t InodeBitmapAllocate(struct partition*part);
 int32_t BlockBitmapAllocate(struct partition*part);
 void BitMapUpdate(struct partition*part,uint32_t idx,enum FS_BITMAP_TYPE flag);
+void BlockBitMapReset(struct partition*part,uint32_t idx);
 int32_t file_create(struct Dir*dir,const char*file,uint8_t flag);
 int32_t file_open(uint32_t index,uint8_t flag);
 uint32_t file_write(int32_t fd,const void*buf,uint32_t size);

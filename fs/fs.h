@@ -6,7 +6,8 @@
 #define MAXFILE_PER_PART 4096//每个分区可以创建的最多文件数量
 #define SECTOR_SIZE 512//扇区的大小
 #define SECTOR_BITS (SECTOR_SIZE*8)//扇区的位数
-#define BLOCK_SIZE SECTOR_SIZE//块大小,这里暂定为扇区大小
+#define BLOCK_SIZE PAGE_SIZE//块大小,这里暂定为一页大小(方便以后虚拟内存的实现)
+#define BLOCK_OCCUPY_SECTOR (BLOCK_SIZE/SECTOR_SIZE)//一块占几个扇区
 #define SUPERBLOCK_MAGIC 0x2005119//我的生日
 /////////////////////////////////////
 extern struct partition*CurPartition;//默认情况下使用的分区
